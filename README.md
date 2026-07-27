@@ -43,12 +43,6 @@ werden (bei Bedarf `chmod +x STARTEN-MAC.command`).
 Kommentare erscheinen nie automatisch – sie werden erst nach Freigabe in der
 Regie sichtbar. Teilnehmende geben keine Namen oder E-Mail-Adressen an.
 
-## Auf GitHub veröffentlichen
-
-Der Code ist unbedenklich – enthält keine Zugangsdaten. **Aber der Ordner
-`data/` darf nie ins Repo:** dort liegen hochgeladene Videos (evtl. mit
-Teilnehmenden) und die PIN. Die mitgelieferte `.gitignore` schließt ihn aus –
-vor dem ersten Push kurz prüfen, dass `git status` kein `data/` zeigt.
 
 ## Grenzen & Technik
 
