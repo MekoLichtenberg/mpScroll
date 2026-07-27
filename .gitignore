@@ -1,0 +1,11 @@
+# Workshop-Daten NIEMALS ins öffentliche Repo:
+# enthält hochgeladene Videos/Profilbilder (evtl. mit Teilnehmenden) und die aktuelle PIN.
+data/
+
+# Abhängigkeiten und Logs
+node_modules/
+*.log
+
+# Betriebssystem
+.DS_Store
+Thumbs.db

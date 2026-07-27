@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#12dfe5" />
+    <title>mpScroll – An die Wand</title>
+    <link rel="stylesheet" href="./wand.css" />
+    <script src="./qr.js" defer></script>
+    <script src="./wand.js" defer></script>
+  </head>
+  <body>
+    <div class="shape shape-yellow" aria-hidden="true"></div>
+    <div class="shape shape-magenta" aria-hidden="true"></div>
+
+    <main class="wall">
+      <header class="wall-head">
+        <img class="mp-logo" src="./mp-logo.png" alt="mediale pfade" />
+        <p class="wall-title">Wird geladen …</p>
+      </header>
+
+      <p class="wall-lead">So kommt ihr in den Feed</p>
+
+      <div class="wall-grid">
+        <section class="step step-address">
+          <span class="step-no">1</span>
+          <h2>Adresse öffnen</h2>
+          <p class="hint">QR-Code scannen – das führt direkt in den Feed. Oder die Adresse im Browser eintippen.</p>
+          <div class="qr-holder">
+            <canvas class="qr" aria-label="QR-Code zur Workshop-Adresse"></canvas>
+          </div>
+          <p class="address">–</p>
+        </section>
+
+        <section class="step step-pin">
+          <span class="step-no">2</span>
+          <h2>PIN eingeben</h2>
+          <p class="hint">Nur nötig, wenn ihr die Adresse eintippt.</p>
+          <p class="pin">····</p>
+          <p class="pin-note">Nur für diesen Workshop gültig.</p>
+        </section>
+      </div>
+
+      <p class="wall-status" hidden></p>
+    </main>
+  </body>
+</html>

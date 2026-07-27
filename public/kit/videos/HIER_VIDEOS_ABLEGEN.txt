@@ -1,0 +1,9 @@
+Eigene MP4-Dateien hier ablegen und die drei src-Adressen in index.html ersetzen.
+
+Empfehlung für iPads:
+- Hochformat 9:16
+- H.264 MP4
+- 720 × 1280 Pixel
+- 600–900 kbit/s
+- 15–45 Sekunden pro Clip
+- Dateinamen ohne Leerzeichen, zum Beispiel popcorn.mp4

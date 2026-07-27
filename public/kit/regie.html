@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#12dfe5" />
+    <title>mpScroll Regie</title>
+    <link rel="stylesheet" href="./regie.css" />
+    <script src="./regie.js" defer></script>
+  </head>
+  <body>
+    <div class="shape shape-cyan" aria-hidden="true"></div>
+    <div class="shape shape-yellow" aria-hidden="true"></div>
+    <div class="shape shape-magenta" aria-hidden="true"></div>
+
+    <section class="pin-screen">
+      <div class="pin-card">
+        <img class="mp-logo" src="./mp-logo.png" alt="mediale pfade" />
+        <p class="kicker">mpScroll REGIE</p>
+        <h1>Workshop<br />einrichten</h1>
+        <p>
+          Gib die Regie-PIN aus dem Startfenster ein. Die voreingestellte PIN
+          lautet <strong>2468</strong>.
+        </p>
+        <form class="pin-form">
+          <label for="pin">Regie-PIN</label>
+          <div class="pin-row">
+            <input id="pin" inputmode="numeric" maxlength="12" autocomplete="off" required />
+            <button type="submit">Öffnen</button>
+          </div>
+          <span class="pin-error" role="alert"></span>
+        </form>
+      </div>
+    </section>
+
+    <main class="dashboard" hidden>
+      <header class="dash-header">
+        <div>
+          <img class="mp-logo" src="./mp-logo.png" alt="mediale pfade" />
+          <p class="kicker">mpScroll REGIE</p>
+        </div>
+        <div class="header-actions">
+          <a class="outline-button" href="./index.html" target="_blank">Feed ansehen ↗</a>
+          <button class="logout-button" type="button">Sperren</button>
+        </div>
+      </header>
+
+      <section class="welcome">
+        <div>
+          <p class="kicker">WORKSHOP-ZENTRALE</p>
+          <h1>Alles bereit<br />fürs Scrollen?</h1>
+        </div>
+        <div class="access-cards">
+          <div class="kid-link-card">
+            <span>Diese Adresse öffnen die iPads:</span>
+            <strong class="kid-link">Wird geladen …</strong>
+            <button class="copy-link" type="button">Adresse kopieren</button>
+          </div>
+          <div class="pin-card-live">
+            <span>Workshop-PIN für die iPads:</span>
+            <strong class="join-pin-value">····</strong>
+            <div class="pin-actions">
+              <button class="regen-pin" type="button">Neue PIN</button>
+              <a class="wall-link" href="./wand.html" target="_blank">Wand-Ansicht ↗</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="stats" aria-label="Live-Übersicht">
+        <article class="stat-card cyan">
+          <span>Live im Feed</span>
+          <strong class="stat-devices">0</strong>
+          <small>verbundene Geräte</small>
+        </article>
+        <article class="stat-card yellow">
+          <span>Im Workshop</span>
+          <strong class="stat-videos">0</strong>
+          <small>veröffentlichte Clips</small>
+        </article>
+        <article class="stat-card magenta">
+          <span>Reaktionen</span>
+          <strong class="stat-likes">0</strong>
+          <small>Likes insgesamt</small>
+        </article>
+        <article class="stat-card green">
+          <span>Moderation</span>
+          <strong class="stat-pending">0</strong>
+          <small>Kommentare warten</small>
+        </article>
+      </section>
+
+      <section class="control-grid">
+        <article class="panel settings-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="kicker">01 · EINSTELLEN</p>
+              <h2>Workshop</h2>
+            </div>
+            <span class="save-state"></span>
+          </div>
+          <form class="settings-form">
+            <label>
+              Titel des Workshops
+              <input name="workshopTitle" maxlength="60" required />
+            </label>
+            <label class="switch-row">
+              <span>
+                <strong>Feed freigeben</strong>
+                <small>Auf den iPads erscheinen die Videos.</small>
+              </span>
+              <input name="published" type="checkbox" />
+            </label>
+            <label class="switch-row">
+              <span>
+                <strong>Kommentare erlauben</strong>
+                <small>Neue Beiträge warten immer auf Freigabe.</small>
+              </span>
+              <input name="commentsEnabled" type="checkbox" />
+            </label>
+            <button class="primary-button" type="submit">Einstellungen speichern</button>
+          </form>
+        </article>
+
+        <article class="panel add-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="kicker">02 · HINZUFÜGEN</p>
+              <h2>Neuer Clip</h2>
+            </div>
+          </div>
+          <form class="video-form">
+            <div class="field-grid">
+              <label>
+                Titel
+                <input name="title" maxlength="80" placeholder="z. B. Wem gehört dein Feed?" required />
+              </label>
+              <label>
+                Profilname
+                <input name="channel" maxlength="30" placeholder="z. B. Team Algorithmus" required />
+              </label>
+            </div>
+            <label>
+              Kurzbeschreibung
+              <textarea
+                name="description"
+                maxlength="240"
+                rows="3"
+                placeholder="Worum geht es in diesem Clip?"
+                required
+              ></textarea>
+            </label>
+            <label>
+              Gesprächsimpuls
+              <input name="prompt" maxlength="100" placeholder="z. B. Erst abstimmen, dann diskutieren" />
+            </label>
+            <div class="field-grid">
+              <label class="file-field">
+                Video auswählen
+                <input name="video" type="file" accept="video/mp4,video/webm" required />
+                <span>MP4 oder WebM · maximal 250 MB</span>
+              </label>
+              <label class="file-field">
+                Profilbild auswählen
+                <input name="avatar" type="file" accept="image/png,image/jpeg,image/webp" />
+                <span>Optional · maximal 3 MB</span>
+              </label>
+            </div>
+            <label>
+              Akzentfarbe
+              <select name="accent">
+                <option value="cyan">Cyan</option>
+                <option value="yellow">Gelb</option>
+                <option value="magenta">Magenta</option>
+                <option value="green">Grün</option>
+                <option value="blue">Blau</option>
+                <option value="red">Rot</option>
+              </select>
+            </label>
+            <div class="upload-progress" hidden>
+              <span></span>
+            </div>
+            <p class="form-message" role="status"></p>
+            <button class="primary-button magenta-button" type="submit">
+              Clip in den Feed stellen
+            </button>
+          </form>
+        </article>
+      </section>
+
+      <section class="panel library-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="kicker">03 · ÜBERBLICK</p>
+            <h2>Clips im Feed</h2>
+          </div>
+        </div>
+        <div class="video-list"></div>
+      </section>
+
+      <section class="panel moderation-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="kicker">04 · MODERIEREN</p>
+            <h2>Kommentare prüfen</h2>
+          </div>
+          <span class="moderation-note">Nichts erscheint ohne eure Freigabe.</span>
+        </div>
+        <div class="comment-queue"></div>
+      </section>
+    </main>
+
+    <div class="admin-toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

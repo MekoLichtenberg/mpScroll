@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#12dfe5" />
+    <meta
+      name="description"
+      content="mpScroll – ein kuratierter Kurzvideo-Feed für Workshops von mediale pfade."
+    />
+    <title>mpScroll – Workshop-Feed</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <aside class="brand-panel" aria-hidden="true">
+      <img class="mp-logo" src="./mp-logo.png" alt="mediale pfade" />
+      <p class="brand-kicker">WORKSHOP-WERKZEUG</p>
+      <h1>Scrollen.<br />Einordnen.<br /><em>Mitreden.</em></h1>
+      <p class="brand-intro">
+        Ein kuratierter Kurzvideo-Feed für politische Bildung in der digitalen
+        Gesellschaft.
+      </p>
+      <div class="brand-tip">
+        <span>↕</span>
+        <p>Am iPad nach oben wischen<br />Am Rechner Pfeiltasten nutzen</p>
+      </div>
+    </aside>
+
+    <main class="phone-stage" aria-label="Kuratierter Video-Feed">
+      <header class="topbar">
+        <a class="brand" href="#feed-start" aria-label="Zum ersten Clip">
+          mp<span>Scroll</span>
+        </a>
+        <div class="feed-tabs" aria-label="Ansicht">
+          <span>Entdecken</span>
+          <strong>Workshop</strong>
+        </div>
+        <button class="sound-button" type="button" aria-label="Ton einschalten">
+          <span aria-hidden="true">⌁</span>
+        </button>
+      </header>
+
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span class="workshop-label">mediale pfade Workshop</span>
+        <span class="status-mode">lokal</span>
+      </div>
+
+      <section class="feed" id="feed-start" tabindex="0" aria-live="polite"></section>
+
+      <section class="hold-screen" hidden>
+        <div class="hold-shape"></div>
+        <p class="eyebrow">GLEICH GEHT’S LOS</p>
+        <h2>Der Feed ist noch nicht freigegeben.</h2>
+        <p>Bleib auf dieser Seite – die Workshop-Leitung startet gleich.</p>
+      </section>
+
+      <nav class="bottom-nav" aria-label="Workshop-Navigation">
+        <span class="active"><i aria-hidden="true">⌂</i>Feed</span>
+        <span><i aria-hidden="true">◇</i>Impulse</span>
+        <span><i aria-hidden="true">✓</i>Workshop</span>
+      </nav>
+
+      <section class="comment-sheet" aria-hidden="true" aria-label="Kommentare">
+        <div class="sheet-handle"></div>
+        <header>
+          <div>
+            <p class="eyebrow">MODERIERTE KOMMENTARE</p>
+            <h2>Was denkt ihr?</h2>
+          </div>
+          <button class="close-comments" type="button" aria-label="Kommentare schließen">×</button>
+        </header>
+        <div class="comment-list"></div>
+        <form class="comment-form">
+          <label for="comment-text">Dein Gedanke zum Clip</label>
+          <textarea
+            id="comment-text"
+            maxlength="180"
+            rows="3"
+            placeholder="Schreib respektvoll und ohne persönliche Daten …"
+            required
+          ></textarea>
+          <div class="comment-form-footer">
+            <small>Wird erst nach Freigabe sichtbar.</small>
+            <button type="submit">Absenden</button>
+          </div>
+        </form>
+      </section>
+      <button class="sheet-backdrop" type="button" aria-label="Kommentare schließen" hidden></button>
+      <div class="toast" role="status" aria-live="polite"></div>
+
+      <div class="join-gate" hidden>
+        <div class="join-shape" aria-hidden="true"></div>
+        <div class="join-card">
+          <img class="mp-logo" src="./mp-logo.png" alt="mediale pfade" />
+          <p class="eyebrow">WORKSHOP-ZUGANG</p>
+          <h2>PIN eingeben</h2>
+          <p class="join-hint">Der Code steht auf der Leinwand im Raum.</p>
+          <form class="join-form">
+            <input
+              id="join-pin"
+              inputmode="numeric"
+              autocomplete="off"
+              maxlength="12"
+              placeholder="••••"
+              aria-label="Workshop-PIN"
+            />
+            <button type="submit">Beitreten</button>
+          </form>
+          <p class="join-error" role="alert"></p>
+        </div>
+      </div>
+    </main>
+
+    <div class="independence-note">
+      Unabhängige Workshop-Demo · nicht mit TikTok verbunden
+    </div>
+  </body>
+</html>
