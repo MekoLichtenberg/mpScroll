@@ -3,7 +3,7 @@
 Ein kuratierter Kurzvideo-Feed im TikTok-Stil für Medienpädagogik-Workshops.
 Die Workshop-Leitung pflegt Clips und moderiert Kommentare über eine
 Regie-Oberfläche, die Teilnehmenden scrollen auf ihren iPads. Alles läuft
-**lokal im eigenen WLAN** – keine Cloud, keine Konten.
+**lokal im eigenen WLAN**. Keine Cloud, keine Konten.
 
 ![Wand-Ansicht für den Beamer](docs/wand.png)
 
