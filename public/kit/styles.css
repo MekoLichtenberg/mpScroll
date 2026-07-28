@@ -337,8 +337,6 @@ textarea {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.78;
-  filter: saturate(0.92) contrast(1.04);
 }
 
 .clip.has-video-error .clip-video {
@@ -407,13 +405,10 @@ textarea {
   --clip-accent-alt: var(--yellow);
 }
 
+/* Abdunkelung entfernt – das Video bleibt in voller Helligkeit.
+   Lesbarkeit der Texteinblendungen kommt jetzt über text-shadow. */
 .clip-shade {
-  position: absolute;
-  z-index: 4;
-  inset: 0;
-  background:
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.25), transparent 30%),
-    linear-gradient(to top, rgba(0, 0, 0, 0.98), rgba(0, 0, 0, 0.08) 60%, transparent 74%);
+  display: none;
 }
 
 .clip-copy {
@@ -442,14 +437,16 @@ textarea {
   font-weight: 500;
   line-height: 0.9;
   letter-spacing: -0.065em;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6), 0 2px 20px rgba(0, 0, 0, 0.45);
 }
 
 .clip-copy > p {
   max-width: 310px;
   margin: 0;
-  color: rgba(255, 255, 255, 0.84);
+  color: rgba(255, 255, 255, 0.92);
   font-size: 12px;
   line-height: 1.55;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 1px 10px rgba(0, 0, 0, 0.5);
 }
 
 .prompt {
@@ -924,6 +921,73 @@ textarea {
   color: #9d0010;
   font-size: 12px;
   font-weight: 700;
+}
+
+.start-overlay {
+  position: absolute;
+  z-index: 58;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(5, 5, 5, 0.6);
+  backdrop-filter: blur(6px);
+}
+
+.start-overlay[hidden] {
+  display: none;
+}
+
+.start-button {
+  display: grid;
+  gap: 2px;
+  place-items: center;
+  width: min(64vw, 230px);
+  height: min(64vw, 230px);
+  border: 4px solid var(--black);
+  border-radius: 50%;
+  background: var(--cyan);
+  color: var(--black);
+  font-size: clamp(30px, 9vw, 44px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  cursor: pointer;
+  animation: start-pulse 1.35s ease-in-out infinite;
+}
+
+.start-button:active {
+  transform: scale(0.97);
+}
+
+.start-icon {
+  font-size: 0.6em;
+  line-height: 1;
+}
+
+.start-hint {
+  margin: 0;
+  color: var(--white);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+
+@keyframes start-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(18, 223, 229, 0.7),
+      0 12px 44px rgba(0, 0, 0, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 24px rgba(18, 223, 229, 0),
+      0 12px 44px rgba(0, 0, 0, 0.45);
+  }
 }
 
 @keyframes drift {

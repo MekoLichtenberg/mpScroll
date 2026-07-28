@@ -63,6 +63,8 @@ const joinGate = document.querySelector(".join-gate");
 const joinForm = document.querySelector(".join-form");
 const joinPinInput = document.querySelector("#join-pin");
 const joinError = document.querySelector(".join-error");
+const startOverlay = document.querySelector(".start-overlay");
+const startButton = document.querySelector(".start-button");
 
 const storageKey = "mpscroll-workshop-v2";
 const initialLocalState = { liked: {}, counts: {} };
@@ -94,12 +96,21 @@ function joinHeaders(extra = {}) {
 
 function showJoinGate(message = "") {
   joinGate.hidden = false;
+  startOverlay.hidden = true;
   joinError.textContent = message;
   joinPinInput.focus();
 }
 
 function hideJoinGate() {
   if (!joinGate.hidden) joinGate.hidden = true;
+}
+
+// Der große Start-Button erscheint, sobald der Feed offen ist und der Ton noch
+// nicht freigeschaltet wurde – ein bewusster Tipp entsperrt den Ton (iOS-Regel).
+function updateStartOverlay() {
+  const published = feedData.settings?.published !== false;
+  const show = !soundUnlocked && joinGate.hidden && published && clips.length > 0;
+  startOverlay.hidden = !show;
 }
 
 function loadLocalState() {
@@ -223,6 +234,7 @@ function renderFeed(data) {
   feedElement.innerHTML = data.videos.map(clipMarkup).join("");
   clips = [...document.querySelectorAll(".clip")];
   setupClips();
+  updateStartOverlay();
 }
 
 function setupClips() {
@@ -386,10 +398,28 @@ async function submitComment(event) {
   }
 }
 
+function generateDeviceId() {
+  // crypto.randomUUID gibt es nur in sicheren Kontexten (HTTPS/localhost).
+  // Die iPads erreichen den Server über http://LAN-IP – deshalb Fallbacks.
+  if (window.crypto?.randomUUID) {
+    try {
+      return crypto.randomUUID();
+    } catch {
+      /* fällt unten durch */
+    }
+  }
+  if (window.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function getDeviceId() {
   let deviceId = localStorage.getItem("mpscroll-device-id");
   if (!deviceId) {
-    deviceId = crypto.randomUUID();
+    deviceId = generateDeviceId();
     localStorage.setItem("mpscroll-device-id", deviceId);
   }
   return deviceId;
@@ -446,13 +476,47 @@ async function refreshFeed() {
   }
 }
 
-soundButton.addEventListener("click", () => {
-  soundOn = !soundOn;
+function applySound() {
   soundButton.classList.toggle("is-on", soundOn);
   soundButton.setAttribute("aria-label", soundOn ? "Ton ausschalten" : "Ton einschalten");
   clips.forEach((clip) => {
     clip.querySelector("video").muted = !soundOn;
   });
+}
+
+// Browser verbieten Autoplay MIT Ton – erlaubt ist er nur nach einer
+// Nutzer-Geste. Darum schalten wir den Ton beim ersten Antippen/Wischen im
+// Feed automatisch ein, direkt in der Geste (nur so lässt iOS ihn zu).
+let soundUnlocked = false;
+
+function unlockSound() {
+  if (soundUnlocked || soundOn) return;
+  soundUnlocked = true;
+  soundOn = true;
+  applySound();
+  const active = clips.find((clip) => clip.dataset.clipId === activeClipId);
+  active?.querySelector("video")?.play().catch(() => {});
+  setToast("Ton an");
+}
+
+function startWorkshop() {
+  soundUnlocked = true;
+  soundOn = true;
+  applySound();
+  const active = clips.find((clip) => clip.dataset.clipId === activeClipId);
+  active?.querySelector("video")?.play().catch(() => {});
+  startOverlay.hidden = true;
+  setToast("Los geht’s – Ton an");
+}
+
+startButton.addEventListener("click", startWorkshop);
+feedElement.addEventListener("pointerdown", unlockSound);
+feedElement.addEventListener("keydown", unlockSound);
+
+soundButton.addEventListener("click", () => {
+  soundUnlocked = true; // ab jetzt entscheidet die Nutzer*in bewusst
+  soundOn = !soundOn;
+  applySound();
   setToast(soundOn ? "Ton an" : "Ton aus");
 });
 
