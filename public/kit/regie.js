@@ -14,6 +14,7 @@ const adminToast = document.querySelector(".admin-toast");
 
 let adminPin = sessionStorage.getItem("mpscroll-admin-pin") || "";
 let adminState = null;
+let editingVideoId = null;
 let toastTimer;
 let pollTimer;
 
@@ -85,6 +86,8 @@ async function unlockDashboard() {
 }
 
 async function refreshState() {
+  // Während des Bearbeitens nicht neu rendern, sonst gingen Eingaben verloren.
+  if (editingVideoId) return;
   try {
     adminState = await api("state");
     render();
@@ -118,8 +121,39 @@ function renderVideos() {
       '<div class="empty-state">Noch keine Clips im Feed. Oben könnt ihr den ersten hinzufügen.</div>';
     return;
   }
+  const accents = [
+    ["cyan", "Cyan"],
+    ["yellow", "Gelb"],
+    ["magenta", "Magenta"],
+    ["green", "Grün"],
+    ["blue", "Blau"],
+    ["red", "Rot"],
+  ];
   videoList.innerHTML = adminState.videos
     .map((video) => {
+      if (video.id === editingVideoId) {
+        const options = accents
+          .map(
+            ([value, label]) =>
+              `<option value="${value}"${video.accent === value ? " selected" : ""}>${label}</option>`,
+          )
+          .join("");
+        return `
+        <article class="video-row is-editing">
+          <form class="video-edit-form" data-video-id="${escapeHtml(video.id)}">
+            <label>Titel<input name="title" maxlength="80" value="${escapeHtml(video.title)}" required /></label>
+            <label>Profilname<input name="channel" maxlength="30" value="${escapeHtml(video.channel)}" required /></label>
+            <label>Kurzbeschreibung<textarea name="description" maxlength="240" rows="2" required>${escapeHtml(video.description)}</textarea></label>
+            <label>Gesprächsimpuls<input name="prompt" maxlength="100" value="${escapeHtml(video.prompt || "")}" /></label>
+            <label>Akzentfarbe<select name="accent">${options}</select></label>
+            <div class="edit-actions">
+              <button type="submit" class="primary-button">Speichern</button>
+              <button type="button" class="cancel-edit">Abbrechen</button>
+            </div>
+          </form>
+        </article>
+      `;
+      }
       const avatar = safeUrl(video.avatarUrl);
       const avatarMarkup = avatar
         ? `<img src="${avatar}" alt="" />`
@@ -131,9 +165,10 @@ function renderVideos() {
             <strong>${escapeHtml(video.title)}</strong>
             <span>${escapeHtml(video.channel)} · ${Number(video.likes || 0)} Likes</span>
           </div>
-          <button class="delete-video" type="button" data-video-id="${escapeHtml(video.id)}">
-            Entfernen
-          </button>
+          <div class="row-actions">
+            <button class="edit-video" type="button" data-video-id="${escapeHtml(video.id)}">Bearbeiten</button>
+            <button class="delete-video" type="button" data-video-id="${escapeHtml(video.id)}">Entfernen</button>
+          </div>
         </article>
       `;
     })
@@ -142,6 +177,46 @@ function renderVideos() {
   videoList.querySelectorAll(".delete-video").forEach((button) => {
     button.addEventListener("click", () => deleteVideo(button.dataset.videoId));
   });
+  videoList.querySelectorAll(".edit-video").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingVideoId = button.dataset.videoId;
+      renderVideos();
+    });
+  });
+  const editForm = videoList.querySelector(".video-edit-form");
+  if (editForm) {
+    editForm.addEventListener("submit", saveVideoEdit);
+    editForm.querySelector(".cancel-edit").addEventListener("click", () => {
+      editingVideoId = null;
+      renderVideos();
+    });
+    editForm.elements.title.focus();
+  }
+}
+
+async function saveVideoEdit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submitButton = form.querySelector("button[type='submit']");
+  submitButton.disabled = true;
+  try {
+    await api(`video/${encodeURIComponent(form.dataset.videoId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: form.elements.title.value,
+        channel: form.elements.channel.value,
+        description: form.elements.description.value,
+        prompt: form.elements.prompt.value,
+        accent: form.elements.accent.value,
+      }),
+    });
+    editingVideoId = null;
+    showToast("Clip aktualisiert");
+    await refreshState();
+  } catch (error) {
+    submitButton.disabled = false;
+    if (error.message !== "unauthorized") showToast(error.message);
+  }
 }
 
 function renderComments() {
@@ -329,6 +404,29 @@ document.querySelector(".regen-pin").addEventListener("click", async () => {
     await refreshState();
   } catch (error) {
     showToast(error.message);
+  }
+});
+
+document.querySelector(".export-button").addEventListener("click", async () => {
+  try {
+    const response = await fetch(apiUrl("export"), {
+      headers: { "X-Admin-Pin": adminPin },
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error("Auswertung konnte nicht erstellt werden.");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    link.download = `mpscroll-auswertung-${stamp}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast("Auswertung heruntergeladen");
+  } catch (error) {
+    showToast(error.message || "Export fehlgeschlagen");
   }
 });
 

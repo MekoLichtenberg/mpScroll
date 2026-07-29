@@ -552,6 +552,7 @@ select:focus {
   font-size: 11px;
 }
 
+.edit-video,
 .delete-video,
 .approve-comment,
 .reject-comment {
@@ -560,6 +561,48 @@ select:focus {
   border-radius: 999px;
   background: var(--white);
   font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.edit-video {
+  background: var(--cyan);
+}
+
+.row-actions {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.video-row.is-editing {
+  display: block;
+  background: var(--white);
+}
+
+.video-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.video-edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 9px;
+}
+
+.cancel-edit {
+  padding: 12px 17px;
+  border: 1.5px solid var(--black);
+  border-radius: 999px;
+  background: var(--white);
+  font-size: 12px;
   font-weight: 800;
   cursor: pointer;
 }

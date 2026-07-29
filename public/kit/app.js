@@ -65,6 +65,7 @@ const joinPinInput = document.querySelector("#join-pin");
 const joinError = document.querySelector(".join-error");
 const startOverlay = document.querySelector(".start-overlay");
 const startButton = document.querySelector(".start-button");
+const deviceNameInput = document.querySelector("#device-name");
 
 const storageKey = "mpscroll-workshop-v2";
 const initialLocalState = { liked: {}, counts: {} };
@@ -79,6 +80,7 @@ let openCommentClipId = null;
 let toastTimer;
 let feedSignature = "";
 let joinPin = localStorage.getItem("mpscroll-join-pin") || "";
+let deviceName = localStorage.getItem("mpscroll-device-name") || "";
 
 // Direkt-Beitreten: Der QR-Code der Wand-Ansicht hängt die PIN als #pin=… an.
 // Das Fragment bleibt lokal im Browser und wird nie an den Server gesendet.
@@ -111,6 +113,9 @@ function updateStartOverlay() {
   const published = feedData.settings?.published !== false;
   const show = !soundUnlocked && joinGate.hidden && published && clips.length > 0;
   startOverlay.hidden = !show;
+  if (show && !deviceNameInput.value && deviceName) {
+    deviceNameInput.value = deviceName;
+  }
 }
 
 function loadLocalState() {
@@ -308,7 +313,7 @@ async function toggleLike(clip) {
     const response = await fetch(apiUrl("likes"), {
       method: "POST",
       headers: joinHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ clipId, delta }),
+      body: JSON.stringify({ clipId, delta, deviceName }),
     });
     if (response.status === 401) {
       showJoinGate("Die PIN wurde geändert. Bitte neu eingeben.");
@@ -383,6 +388,7 @@ async function submitComment(event) {
         clipId: openCommentClipId,
         text,
         deviceId: getDeviceId(),
+        deviceName,
       }),
     });
     if (response.status === 401) {
@@ -500,6 +506,8 @@ function unlockSound() {
 }
 
 function startWorkshop() {
+  deviceName = (deviceNameInput.value || "").trim().slice(0, 40);
+  localStorage.setItem("mpscroll-device-name", deviceName);
   soundUnlocked = true;
   soundOn = true;
   applySound();

@@ -98,6 +98,7 @@ function defaultState() {
       },
     ],
     comments: [],
+    likeLog: [],
   };
 }
 
@@ -122,6 +123,8 @@ function persistState() {
 
 // Existing state.json files predate the join PIN – make sure one always exists.
 state.settings ||= defaultState().settings;
+state.comments ||= [];
+state.likeLog ||= []; // Protokoll für die Auswertung (wer hat was geliked)
 if (!state.settings.joinPin) {
   state.settings.joinPin = String(randomInt(1000, 10000));
   await persistState();
@@ -141,6 +144,10 @@ function joinAuthorized(request) {
   const pin = state.settings.joinPin;
   if (!pin) return true;
   return request.headers["x-join-pin"] === pin;
+}
+
+function clientIp(request) {
+  return (request.socket.remoteAddress || "").replace(/^::ffff:/, "");
 }
 
 function cleanText(value, maxLength) {
@@ -281,6 +288,53 @@ function adminPayload() {
   };
 }
 
+// Excel-taugliches CSV: Semikolon-getrennt (deutsches Excel) + UTF-8-BOM.
+function csvField(value) {
+  const text = String(value ?? "");
+  return /[";\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function buildActivityCsv() {
+  const titleById = new Map(state.videos.map((video) => [video.id, video.title]));
+  const rows = [];
+  for (const comment of state.comments) {
+    rows.push({
+      time: comment.createdAt,
+      device: comment.device || comment.deviceIp || "(ohne Name)",
+      action: "Kommentar",
+      status: comment.status === "approved" ? "freigegeben" : "wartet",
+      clip: titleById.get(comment.clipId) || comment.clipId,
+      text: comment.text,
+    });
+  }
+  for (const like of state.likeLog) {
+    rows.push({
+      time: like.createdAt,
+      device: like.device || like.deviceIp || "(ohne Name)",
+      action: like.action === "unlike" ? "Like entfernt" : "Like",
+      status: "",
+      clip: titleById.get(like.clipId) || like.clipId,
+      text: "",
+    });
+  }
+  rows.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+
+  const header = ["Zeitpunkt", "Gerät", "Aktion", "Status", "Clip", "Inhalt"];
+  const lines = [header.map(csvField).join(";")];
+  for (const row of rows) {
+    let when = row.time;
+    try {
+      when = new Date(row.time).toLocaleString("de-DE");
+    } catch {
+      /* Rohwert behalten */
+    }
+    lines.push(
+      [when, row.device, row.action, row.status, row.clip, row.text].map(csvField).join(";"),
+    );
+  }
+  return "﻿" + lines.join("\r\n");
+}
+
 async function removeUploadedFile(url) {
   if (!url?.startsWith("/uploads/")) return;
   const filename = url.slice("/uploads/".length);
@@ -398,13 +452,22 @@ const server = createServer(async (request, response) => {
     }
 
     if (url.pathname === "/api/likes" && request.method === "POST") {
-      const { clipId, delta } = await readJson(request);
+      const payload = await readJson(request);
+      const clipId = cleanText(payload.clipId, 80);
+      const delta = payload.delta === -1 ? -1 : 1;
       const video = state.videos.find((item) => item.id === clipId);
       if (!video) {
         sendJson(response, 400, { error: "Unbekannter Clip." });
         return;
       }
-      video.likes = Math.max(0, Number(video.likes || 0) + (delta === -1 ? -1 : 1));
+      video.likes = Math.max(0, Number(video.likes || 0) + delta);
+      state.likeLog.push({
+        createdAt: new Date().toISOString(),
+        device: cleanText(payload.deviceName, 40),
+        deviceIp: clientIp(request),
+        clipId,
+        action: delta === 1 ? "like" : "unlike",
+      });
       await persistState();
       sendJson(response, 200, { clipId, count: video.likes, shared: true });
       return;
@@ -428,6 +491,8 @@ const server = createServer(async (request, response) => {
         text,
         status: "pending",
         createdAt: new Date().toISOString(),
+        device: cleanText(payload.deviceName, 40),
+        deviceIp: clientIp(request),
       });
       await persistState();
       sendJson(response, 201, { pending: true });
@@ -446,6 +511,16 @@ const server = createServer(async (request, response) => {
 
       if (url.pathname === "/api/admin/state" && request.method === "GET") {
         sendJson(response, 200, adminPayload());
+        return;
+      }
+
+      if (url.pathname === "/api/admin/export" && request.method === "GET") {
+        response.writeHead(200, {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": 'attachment; filename="mpscroll-auswertung.csv"',
+          "Cache-Control": "no-store",
+        });
+        response.end(buildActivityCsv());
         return;
       }
 
@@ -505,6 +580,27 @@ const server = createServer(async (request, response) => {
       }
 
       const videoMatch = /^\/api\/admin\/video\/([^/]+)$/.exec(url.pathname);
+      if (videoMatch && request.method === "PATCH") {
+        const videoId = decodeURIComponent(videoMatch[1]);
+        const video = state.videos.find((item) => item.id === videoId);
+        if (!video) {
+          sendJson(response, 404, { error: "Clip nicht gefunden." });
+          return;
+        }
+        const payload = await readJson(request);
+        video.title = cleanText(payload.title, 80) || video.title;
+        video.channel = cleanText(payload.channel, 30) || video.channel;
+        video.description = cleanText(payload.description, 240) || video.description;
+        video.prompt = cleanText(payload.prompt, 100) || "Gemeinsam besprechen";
+        const accent = cleanText(payload.accent, 20);
+        if (["cyan", "yellow", "magenta", "green", "blue", "red"].includes(accent)) {
+          video.accent = accent;
+        }
+        await persistState();
+        sendJson(response, 200, { video });
+        return;
+      }
+
       if (videoMatch && request.method === "DELETE") {
         const videoId = decodeURIComponent(videoMatch[1]);
         const video = state.videos.find((item) => item.id === videoId);
