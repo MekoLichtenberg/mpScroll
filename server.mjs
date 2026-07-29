@@ -204,28 +204,44 @@ function activeDeviceCount() {
   return presence.size;
 }
 
-// Übliche WLAN-/LAN-Adressen zuerst, VPN-/Tailscale-Bereiche (100.64/10) zuletzt,
-// damit die iPads die richtige Adresse bekommen.
+// VPN-/Overlay-/virtuelle Adapter (Tailscale, WireGuard, Hyper-V …) ans Ende –
+// die iPads erreichen sie nicht. Sortierung nach ADAPTERNAME, weil ein echtes
+// WLAN durchaus selbst eine 100.x-Adresse haben kann (CGNAT-Router).
+function interfaceRank(name) {
+  return /tailscale|wireguard|\bwg\d|zerotier|hamachi|\bvpn\b|virtual|vethernet|vmware|vbox|hyper-v|loopback|bluetooth|\btun\b|\btap\b/i.test(
+    name,
+  )
+    ? 1
+    : 0;
+}
+
+// Innerhalb echter Adapter die klassischen privaten LAN-Bereiche bevorzugen.
 function ipRank(address) {
   if (/^192\.168\./.test(address)) return 0;
   if (/^10\./.test(address)) return 1;
   if (/^172\.(1[6-9]|2\d|3[01])\./.test(address)) return 1;
-  const cgnat = /^100\.(\d+)\./.exec(address);
-  if (cgnat && Number(cgnat[1]) >= 64 && Number(cgnat[1]) <= 127) return 5;
-  return 3;
+  return 2;
 }
 
 function accessUrls() {
-  const addresses = [];
-  for (const entries of Object.values(networkInterfaces())) {
+  const candidates = [];
+  for (const [name, entries] of Object.entries(networkInterfaces())) {
     for (const entry of entries || []) {
-      if (entry.family === "IPv4" && !entry.internal) {
-        addresses.push(entry.address);
+      // Link-local (169.254.x) ist nicht erreichbar und fliegt raus.
+      if (
+        entry.family === "IPv4" &&
+        !entry.internal &&
+        !entry.address.startsWith("169.254.")
+      ) {
+        candidates.push({
+          address: entry.address,
+          rank: interfaceRank(name) * 10 + ipRank(entry.address),
+        });
       }
     }
   }
-  addresses.sort((a, b) => ipRank(a) - ipRank(b));
-  return addresses.map((address) => `http://${address}:${port}`);
+  candidates.sort((a, b) => a.rank - b.rank);
+  return candidates.map((c) => `http://${c.address}:${port}`);
 }
 
 function publicFeed() {
