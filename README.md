@@ -5,6 +5,23 @@ Die Workshop-Leitung pflegt Clips und moderiert Kommentare über eine
 Regie-Oberfläche, die Teilnehmenden scrollen auf ihren iPads. Alles läuft
 **lokal im eigenen WLAN**. Keine Cloud, keine Konten.
 
+## Schnellstart
+
+Oben die ZIP über den grünen <> Code Button downloaden.
+
+Wenn es nicht schon installiert ist, [Node.js](https://nodejs.org) 22 oder neuer installieren.
+
+1. **Starten** – Im Ordner auf Windows: `STARTEN-WINDOWS.cmd` · Mac: `STARTEN-MAC.command`
+   klicken.
+2. Die **Regie** öffnet sich im Browser. Mit der Regie-PIN `2468` anmelden (kann bei Wunsch geändert werden, aber Kontrolle geht NUR über den PC, der das Tool hostet)
+   Clips hochladen (MP4/WebM, Hochformat 9:16, am besten 720p), Feed freigeben (Muss man nur einmal machen, alles bleibt für das nächste mal gespeichert)
+3. Die **Wand-Ansicht** (`http://localhost:4173/wand`) an den Beamer geben über erweitertes Display.
+   Die iPads scannen den QR-Code und kommen **direkt** in den Feed.
+
+Beim ersten Start ggf. den Firewall-Zugriff fürs private Netzwerk erlauben.
+Auf dem Mac muss `STARTEN-MAC.command` einmal per Rechtsklick → Öffnen erlaubt
+werden (bei Bedarf `chmod +x STARTEN-MAC.command`).
+
 ![Wand-Ansicht für den Beamer](docs/wand.png)
 
 <table>
@@ -17,21 +34,6 @@ Regie-Oberfläche, die Teilnehmenden scrollen auf ihren iPads. Alles läuft
     <td align="center"><em>Regie am Laptop</em></td>
   </tr>
 </table>
-
-## Schnellstart
-
-Voraussetzung: [Node.js](https://nodejs.org) 22 oder neuer.
-
-1. **Starten** – Windows: `STARTEN-WINDOWS.cmd` · Mac: `STARTEN-MAC.command`
-   (oder im Terminal `npm start`).
-2. Die **Regie** öffnet sich im Browser. Mit der Regie-PIN `2468` anmelden,
-   Clips hochladen (MP4/WebM, Hochformat 9:16), Feed freigeben.
-3. Die **Wand-Ansicht** (`http://localhost:4173/wand`) an den Beamer geben.
-   Die iPads scannen den QR-Code – das führt **direkt** in den Feed.
-
-Beim ersten Start ggf. den Firewall-Zugriff fürs private Netzwerk erlauben.
-Auf dem Mac muss `STARTEN-MAC.command` einmal per Rechtsklick → Öffnen erlaubt
-werden (bei Bedarf `chmod +x STARTEN-MAC.command`).
 
 ## Zwei PINs
 
