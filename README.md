@@ -9,7 +9,7 @@ Regie-Oberfläche, die Teilnehmenden scrollen auf ihren iPads. Alles läuft
 
 Oben die ZIP über den grünen <> Code Button downloaden.
 
-Wenn es nicht schon installiert ist, [Node.js](https://nodejs.org) 22 oder neuer installieren.
+[Node.js](https://nodejs.org) 22 oder später wird benötigt, beim ersten Start wird es durch das Tool installiert wenn es noch nicht vorhanden ist.
 
 1. **Starten** – Im Ordner auf Windows: `STARTEN-WINDOWS.cmd` · Mac: `STARTEN-MAC.command`
    klicken.
