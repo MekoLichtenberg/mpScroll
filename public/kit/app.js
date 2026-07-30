@@ -48,7 +48,9 @@ const fallbackFeed = {
 };
 
 const feedElement = document.querySelector(".feed");
+const phoneStage = document.querySelector(".phone-stage");
 const soundButton = document.querySelector(".sound-button");
+const speedButton = document.querySelector(".speed-button");
 const statusMode = document.querySelector(".status-mode");
 const workshopLabel = document.querySelector(".workshop-label");
 const toast = document.querySelector(".toast");
@@ -73,6 +75,10 @@ let localState = loadLocalState();
 let feedData = fallbackFeed;
 let serverMode = false;
 let soundOn = false;
+const speedSteps = [1, 1.5, 2];
+let speedIndex = 0;
+let playbackSpeed = 1;
+let randomOrder = null; // gemerkte Zufallsreihenfolge (nur bei feedOrder === "random")
 let clips = [];
 let observer;
 let activeClipId = null;
@@ -116,6 +122,21 @@ function updateStartOverlay() {
   if (show && !deviceNameInput.value && deviceName) {
     deviceNameInput.value = deviceName;
   }
+  updateStartEnabled();
+}
+
+// Namen abfragen (in der Regie schaltbar): Feld zeigen und den Start sperren,
+// bis ein Name eingetragen ist – oder das Feld ganz ausblenden.
+function applyNameRequirement() {
+  const nameField = document.querySelector(".start-name-field");
+  if (nameField) nameField.hidden = feedData.settings?.requireName === false;
+  updateStartEnabled();
+}
+
+function updateStartEnabled() {
+  const requireName = feedData.settings?.requireName !== false;
+  const hasName = deviceNameInput.value.trim().length > 0;
+  startButton.disabled = requireName && !hasName;
 }
 
 function loadLocalState() {
@@ -224,8 +245,44 @@ function clipMarkup(video, index) {
           <strong class="comment-count">${comments.length}</strong>
         </button>
       </aside>
+      <div class="pause-indicator" aria-hidden="true">▶</div>
+      <div class="scrubber" role="slider" aria-label="Im Video spulen" tabindex="-1">
+        <div class="scrubber-track">
+          <div class="scrubber-fill"></div>
+          <div class="scrubber-knob"></div>
+        </div>
+      </div>
     </article>
   `;
+}
+
+// Fisher–Yates: mischt eine Kopie, ohne das Original zu verändern.
+function shuffle(items) {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+// Reihenfolge bestimmen: feste Reihenfolge aus der Regie oder pro Gerät gemischt.
+// Die Zufallsreihenfolge bleibt stabil, solange sich die Clip-Menge nicht ändert –
+// so springt der Feed nicht bei jeder Aktualisierung durcheinander.
+function orderedVideos(data) {
+  const videos = data.videos || [];
+  if (data.settings?.feedOrder !== "random") {
+    randomOrder = null;
+    return videos;
+  }
+  const ids = videos.map((video) => video.id);
+  const sameSet =
+    randomOrder &&
+    randomOrder.length === ids.length &&
+    randomOrder.every((id) => ids.includes(id));
+  if (!sameSet) randomOrder = shuffle(ids);
+  const byId = new Map(videos.map((video) => [video.id, video]));
+  return randomOrder.map((id) => byId.get(id)).filter(Boolean);
 }
 
 function renderFeed(data) {
@@ -236,9 +293,14 @@ function renderFeed(data) {
   holdScreen.hidden = data.settings?.published !== false;
   feedElement.hidden = data.settings?.published === false;
 
-  feedElement.innerHTML = data.videos.map(clipMarkup).join("");
+  // Overlay (Titel, Beschreibung, Buttons) auf Wunsch ausblenden, damit sich die
+  // Tool-Oberfläche nicht mit eingebrannter Plattform-UI im Video überlagert.
+  phoneStage.classList.toggle("overlay-hidden", data.settings?.showOverlay === false);
+
+  feedElement.innerHTML = orderedVideos(data).map(clipMarkup).join("");
   clips = [...document.querySelectorAll(".clip")];
   setupClips();
+  applyNameRequirement();
   updateStartOverlay();
 }
 
@@ -261,22 +323,94 @@ function setupClips() {
     const video = clip.querySelector("video");
     const likeButton = clip.querySelector(".like-button");
     const commentButton = clip.querySelector(".comment-button");
+    const scrubber = clip.querySelector(".scrubber");
+    const fill = clip.querySelector(".scrubber-fill");
+    const knob = clip.querySelector(".scrubber-knob");
     let lastTap = 0;
+    let singleTapTimer = 0;
 
     video.addEventListener("error", () => clip.classList.add("has-video-error"));
     likeButton.addEventListener("click", () => toggleLike(clip));
     commentButton.addEventListener("click", () => openComments(clip.dataset.clipId));
-    clip.addEventListener("pointerup", (event) => {
-      if (event.target.closest("button, a, textarea")) return;
-      const now = Date.now();
-      if (now - lastTap < 330 && !localState.liked[clip.dataset.clipId]) {
-        toggleLike(clip);
+
+    // Fortschrittsleiste mitlaufen lassen (außer während man selbst zieht).
+    function paintProgress(ratio) {
+      const percent = `${Math.min(100, Math.max(0, ratio * 100))}%`;
+      fill.style.width = percent;
+      knob.style.left = percent;
+    }
+    video.addEventListener("timeupdate", () => {
+      if (clip.classList.contains("is-scrubbing")) return;
+      paintProgress(video.duration ? video.currentTime / video.duration : 0);
+    });
+
+    // Mit dem Finger in der Leiste ziehen = im Clip vor-/zurückspulen (TikTok-Stil).
+    // Pointer Events decken Touch und Maus gemeinsam ab.
+    function seekFromEvent(event) {
+      const rect = scrubber.getBoundingClientRect();
+      const ratio = rect.width ? (event.clientX - rect.left) / rect.width : 0;
+      paintProgress(ratio);
+      if (video.duration) video.currentTime = Math.min(1, Math.max(0, ratio)) * video.duration;
+    }
+    scrubber.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      clip.classList.add("is-scrubbing");
+      try {
+        scrubber.setPointerCapture(event.pointerId);
+      } catch {
+        /* Pointer-Capture ist nicht überall verfügbar – Seek läuft trotzdem. */
       }
+      seekFromEvent(event);
+    });
+    scrubber.addEventListener("pointermove", (event) => {
+      if (clip.classList.contains("is-scrubbing")) seekFromEvent(event);
+    });
+    const endScrub = (event) => {
+      if (!clip.classList.contains("is-scrubbing")) return;
+      event.stopPropagation();
+      clip.classList.remove("is-scrubbing");
+    };
+    scrubber.addEventListener("pointerup", endScrub);
+    scrubber.addEventListener("pointercancel", endScrub);
+
+    // Einmal tippen = Pause/Weiter · doppelt tippen = Like (wie bei TikTok).
+    clip.addEventListener("pointerup", (event) => {
+      if (event.target.closest("button, a, textarea, .scrubber")) return;
+      const now = Date.now();
+      const isDouble = now - lastTap < 330;
       lastTap = now;
+      if (isDouble) {
+        window.clearTimeout(singleTapTimer);
+        if (!localState.liked[clip.dataset.clipId]) toggleLike(clip);
+        return;
+      }
+      singleTapTimer = window.setTimeout(() => handleTap(clip), 250);
     });
   });
 
   if (clips[0]) setActiveClip(clips[0]);
+}
+
+// Ein einzelner Tipp: erst Ton freischalten (iOS-Regel), danach Pause/Weiter.
+function handleTap(clip) {
+  if (!soundUnlocked) {
+    unlockSound();
+    return;
+  }
+  // Der Tipp, der gerade den Ton freigeschaltet hat, soll nicht sofort pausieren.
+  if (Date.now() - lastUnlockAt < 500) return;
+  togglePause(clip);
+}
+
+function togglePause(clip) {
+  const video = clip.querySelector("video");
+  if (video.paused) {
+    video.play().catch(() => {});
+    clip.classList.remove("is-paused");
+  } else {
+    video.pause();
+    clip.classList.add("is-paused");
+  }
 }
 
 function setActiveClip(activeClip) {
@@ -285,8 +419,10 @@ function setActiveClip(activeClip) {
     const video = clip.querySelector("video");
     const isActive = clip === activeClip;
     clip.classList.toggle("is-active", isActive);
+    clip.classList.remove("is-paused");
     if (isActive) {
       video.muted = !soundOn;
+      video.playbackRate = playbackSpeed;
       video.play().catch(() => {});
     } else {
       video.pause();
@@ -494,10 +630,14 @@ function applySound() {
 // Nutzer-Geste. Darum schalten wir den Ton beim ersten Antippen/Wischen im
 // Feed automatisch ein, direkt in der Geste (nur so lässt iOS ihn zu).
 let soundUnlocked = false;
+let lastUnlockAt = 0;
 
 function unlockSound() {
   if (soundUnlocked || soundOn) return;
+  // Solange der Start-Knopf sichtbar ist, entscheidet nur der Knopf (Namensabfrage).
+  if (!startOverlay.hidden) return;
   soundUnlocked = true;
+  lastUnlockAt = Date.now();
   soundOn = true;
   applySound();
   const active = clips.find((clip) => clip.dataset.clipId === activeClipId);
@@ -506,9 +646,15 @@ function unlockSound() {
 }
 
 function startWorkshop() {
+  const requireName = feedData.settings?.requireName !== false;
   deviceName = (deviceNameInput.value || "").trim().slice(0, 40);
+  if (requireName && !deviceName) {
+    deviceNameInput.focus();
+    return;
+  }
   localStorage.setItem("mpscroll-device-name", deviceName);
   soundUnlocked = true;
+  lastUnlockAt = Date.now();
   soundOn = true;
   applySound();
   const active = clips.find((clip) => clip.dataset.clipId === activeClipId);
@@ -518,6 +664,7 @@ function startWorkshop() {
 }
 
 startButton.addEventListener("click", startWorkshop);
+deviceNameInput.addEventListener("input", updateStartEnabled);
 feedElement.addEventListener("pointerdown", unlockSound);
 feedElement.addEventListener("keydown", unlockSound);
 
@@ -528,14 +675,95 @@ soundButton.addEventListener("click", () => {
   setToast(soundOn ? "Ton an" : "Ton aus");
 });
 
+// Wiedergabe-Geschwindigkeit durchschalten: 1× → 1,5× → 2× → 1× …
+function applySpeed() {
+  const label = `${String(playbackSpeed).replace(".", ",")}×`;
+  speedButton.textContent = label;
+  speedButton.classList.toggle("is-fast", playbackSpeed !== 1);
+  clips.forEach((clip) => {
+    clip.querySelector("video").playbackRate = playbackSpeed;
+  });
+  setToast(`Tempo ${label}`);
+}
+speedButton.addEventListener("click", () => {
+  speedIndex = (speedIndex + 1) % speedSteps.length;
+  playbackSpeed = speedSteps[speedIndex];
+  applySpeed();
+});
+
+// Endlosschleife: hinter dem letzten Clip geht es wieder beim ersten los
+// (und über dem ersten Clip landet man am letzten).
+function goToClip(index) {
+  clips[index]?.scrollIntoView({ behavior: "smooth" });
+}
+function activeIndex() {
+  return clips.findIndex((clip) => clip.dataset.clipId === activeClipId);
+}
+
 feedElement.addEventListener("keydown", (event) => {
   if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
   event.preventDefault();
-  const activeIndex = clips.findIndex((clip) => clip.dataset.clipId === activeClipId);
-  const delta = event.key === "ArrowDown" ? 1 : -1;
-  const nextIndex = Math.max(0, Math.min(clips.length - 1, activeIndex + delta));
-  clips[nextIndex]?.scrollIntoView({ behavior: "smooth" });
+  const index = activeIndex();
+  if (event.key === "ArrowDown") goToClip(index >= clips.length - 1 ? 0 : index + 1);
+  else goToClip(index <= 0 ? clips.length - 1 : index - 1);
 });
+
+// Wischen/Scrollen über den Rand hinaus lässt den Feed umschlagen. Weil der
+// Browser nicht über den Inhalt hinaus scrollen lässt, fangen wir den Rand-Impuls
+// selbst ab (Mausrad + Touch), mit kurzer Sperre gegen Doppelauslösung.
+let wrapCooldownUntil = 0;
+const edgeTolerance = 6;
+
+function atBottom() {
+  return feedElement.scrollTop + feedElement.clientHeight >= feedElement.scrollHeight - edgeTolerance;
+}
+function atTop() {
+  return feedElement.scrollTop <= edgeTolerance;
+}
+function tryWrap(direction) {
+  const now = Date.now();
+  if (now < wrapCooldownUntil || clips.length < 2) return;
+  if (direction > 0 && activeIndex() >= clips.length - 1 && atBottom()) {
+    wrapCooldownUntil = now + 700;
+    goToClip(0);
+  } else if (direction < 0 && activeIndex() <= 0 && atTop()) {
+    wrapCooldownUntil = now + 700;
+    goToClip(clips.length - 1);
+  }
+}
+
+feedElement.addEventListener(
+  "wheel",
+  (event) => {
+    if (Math.abs(event.deltaY) < 4) return;
+    tryWrap(event.deltaY > 0 ? 1 : -1);
+  },
+  { passive: true },
+);
+
+let touchStartY = null;
+feedElement.addEventListener(
+  "touchstart",
+  (event) => {
+    // Bedienelemente (Leiste, Buttons) lösen kein Umschlagen aus.
+    touchStartY = event.target.closest("button, a, textarea, .scrubber")
+      ? null
+      : event.touches[0].clientY;
+  },
+  { passive: true },
+);
+feedElement.addEventListener(
+  "touchend",
+  (event) => {
+    if (touchStartY == null) return;
+    const endY = (event.changedTouches[0] || {}).clientY ?? touchStartY;
+    const dy = endY - touchStartY;
+    if (dy < -60) tryWrap(1); // nach oben gewischt = weiter
+    else if (dy > 60) tryWrap(-1); // nach unten gewischt = zurück
+    touchStartY = null;
+  },
+  { passive: true },
+);
 
 commentForm.addEventListener("submit", submitComment);
 closeCommentsButton.addEventListener("click", closeComments);

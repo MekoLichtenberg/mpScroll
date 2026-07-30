@@ -119,6 +119,27 @@
               </span>
               <input name="commentsEnabled" type="checkbox" />
             </label>
+            <label class="switch-row">
+              <span>
+                <strong>Namen abfragen</strong>
+                <small>Teilnehmende müssen vor dem Start einen Namen wählen.</small>
+              </span>
+              <input name="requireName" type="checkbox" />
+            </label>
+            <label class="switch-row">
+              <span>
+                <strong>Overlay über dem Video zeigen</strong>
+                <small>Titel, Beschreibung &amp; Buttons. Aus = nur das reine Video.</small>
+              </span>
+              <input name="showOverlay" type="checkbox" />
+            </label>
+            <label class="switch-row">
+              <span>
+                <strong>Reihenfolge zufällig</strong>
+                <small>An = jedes iPad mischt selbst. Aus = feste Reihenfolge (unten sortierbar).</small>
+              </span>
+              <input name="feedOrderRandom" type="checkbox" />
+            </label>
             <button class="primary-button" type="submit">Einstellungen speichern</button>
           </form>
         </article>
@@ -131,38 +152,38 @@
             </div>
           </div>
           <form class="video-form">
+            <p class="field-hint">Nur das Video ist Pflicht – alles andere ist optional.</p>
             <div class="field-grid">
               <label>
-                Titel
-                <input name="title" maxlength="80" placeholder="z. B. Wem gehört dein Feed?" required />
+                Titel <em>optional</em>
+                <input name="title" maxlength="80" placeholder="z. B. Wem gehört dein Feed?" />
               </label>
               <label>
-                Profilname
-                <input name="channel" maxlength="30" placeholder="z. B. Team Algorithmus" required />
+                Profilname <em>optional</em>
+                <input name="channel" maxlength="30" placeholder="z. B. Team Algorithmus" />
               </label>
             </div>
             <label>
-              Kurzbeschreibung
+              Kurzbeschreibung <em>optional</em>
               <textarea
                 name="description"
                 maxlength="240"
                 rows="3"
                 placeholder="Worum geht es in diesem Clip?"
-                required
               ></textarea>
             </label>
             <label>
-              Gesprächsimpuls
+              Gesprächsimpuls <em>optional</em>
               <input name="prompt" maxlength="100" placeholder="z. B. Erst abstimmen, dann diskutieren" />
             </label>
             <div class="field-grid">
               <label class="file-field">
                 Video auswählen
                 <input name="video" type="file" accept="video/mp4,video/webm" required />
-                <span>MP4 oder WebM · maximal 250 MB</span>
+                <span>MP4 oder WebM · maximal 250 MB · Pflicht</span>
               </label>
               <label class="file-field">
-                Profilbild auswählen
+                Profilbild auswählen <em>optional</em>
                 <input name="avatar" type="file" accept="image/png,image/jpeg,image/webp" />
                 <span>Optional · maximal 3 MB</span>
               </label>

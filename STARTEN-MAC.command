@@ -10,6 +10,27 @@ echo "  Suche Node.js ..."
 
 # Sucht node im PATH und an den ueblichen Installationsorten (auch ohne Neustart).
 find_node() {
+  # --- 0) Mitgeliefertes Node bevorzugen (Paket ohne Installation) ---
+  local here; here="$(cd "$(dirname "$0")" && pwd)"
+  local arch; arch="$(uname -m)"
+  local bundled=""
+  if [ "$arch" = "arm64" ] && [ -f "$here/runtime/arm64/bin/node" ]; then
+    bundled="$here/runtime/arm64/bin/node"
+  elif [ "$arch" != "arm64" ] && [ -f "$here/runtime/x64/bin/node" ]; then
+    bundled="$here/runtime/x64/bin/node"
+  elif [ -f "$here/runtime/arm64/bin/node" ]; then
+    bundled="$here/runtime/arm64/bin/node"
+  elif [ -f "$here/runtime/x64/bin/node" ]; then
+    bundled="$here/runtime/x64/bin/node"
+  fi
+  if [ -n "$bundled" ]; then
+    # Beim ersten Start Ausfuehrrecht setzen und die macOS-Quarantaene entfernen,
+    # damit das mitgelieferte Node ohne Warnung startet.
+    chmod +x "$bundled" 2>/dev/null || true
+    xattr -dr com.apple.quarantine "$here/runtime" 2>/dev/null || true
+    echo "$bundled"; return 0
+  fi
+
   if command -v node >/dev/null 2>&1; then command -v node; return 0; fi
   local c
   for c in \

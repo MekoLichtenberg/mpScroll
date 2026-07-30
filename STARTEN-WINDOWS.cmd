@@ -9,6 +9,10 @@ echo   Suche Node.js ...
 
 set "NODE_EXE="
 
+REM --- 0) Mitgeliefertes Node bevorzugen (Paket ohne Installation) ---
+if exist "%~dp0runtime\node.exe" set "NODE_EXE=%~dp0runtime\node.exe"
+if defined NODE_EXE goto :run
+
 REM --- 1) Node ueber den PATH ---
 for /f "delims=" %%i in ('where node 2^>nul') do if not defined NODE_EXE set "NODE_EXE=%%i"
 

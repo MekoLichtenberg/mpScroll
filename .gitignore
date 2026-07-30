@@ -6,6 +6,11 @@ data/
 node_modules/
 *.log
 
+# Fertige Pakete + heruntergeladene Node-Runtimes (werden per tools/build-kit.mjs erzeugt)
+dist/
+.build-cache/
+runtime/
+
 # Betriebssystem
 .DS_Store
 Thumbs.db

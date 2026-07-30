@@ -56,6 +56,9 @@ function defaultState() {
       workshopTitle: "mediale pfade Workshop",
       published: true,
       commentsEnabled: true,
+      requireName: true,
+      showOverlay: true,
+      feedOrder: "custom",
       joinPin: String(randomInt(1000, 10000)),
     },
     videos: [
@@ -129,6 +132,11 @@ if (!state.settings.joinPin) {
   state.settings.joinPin = String(randomInt(1000, 10000));
   await persistState();
 }
+// Ältere state.json-Dateien kennen die neuen Schalter noch nicht – Standardwerte
+// ergänzen (Namen abfragen = an, Overlay zeigen = an, feste Reihenfolge).
+if (state.settings.requireName === undefined) state.settings.requireName = true;
+if (state.settings.showOverlay === undefined) state.settings.showOverlay = true;
+state.settings.feedOrder = state.settings.feedOrder === "random" ? "random" : "custom";
 
 const loopbackAddresses = new Set([
   "127.0.0.1",
@@ -266,6 +274,9 @@ function publicFeed() {
       workshopTitle: state.settings.workshopTitle,
       published: state.settings.published,
       commentsEnabled: state.settings.commentsEnabled,
+      requireName: state.settings.requireName !== false,
+      showOverlay: state.settings.showOverlay !== false,
+      feedOrder: state.settings.feedOrder === "random" ? "random" : "custom",
     },
     videos: state.videos,
     comments: approvedComments,
@@ -537,8 +548,30 @@ const server = createServer(async (request, response) => {
           cleanText(payload.workshopTitle, 60) || "mediale pfade Workshop";
         state.settings.published = Boolean(payload.published);
         state.settings.commentsEnabled = Boolean(payload.commentsEnabled);
+        state.settings.requireName = Boolean(payload.requireName);
+        state.settings.showOverlay = Boolean(payload.showOverlay);
+        state.settings.feedOrder = payload.feedOrder === "random" ? "random" : "custom";
         await persistState();
         sendJson(response, 200, { settings: state.settings });
+        return;
+      }
+
+      if (url.pathname === "/api/admin/reorder" && request.method === "POST") {
+        const payload = await readJson(request);
+        const order = Array.isArray(payload.order) ? payload.order.map(String) : [];
+        const byId = new Map(state.videos.map((video) => [video.id, video]));
+        const reordered = [];
+        for (const id of order) {
+          const video = byId.get(id);
+          if (video && !reordered.includes(video)) reordered.push(video);
+        }
+        // Nicht genannte Clips (Sicherheitsnetz) hinten anhängen.
+        for (const video of state.videos) {
+          if (!reordered.includes(video)) reordered.push(video);
+        }
+        state.videos = reordered;
+        await persistState();
+        sendJson(response, 200, { ok: true });
         return;
       }
 
@@ -555,17 +588,15 @@ const server = createServer(async (request, response) => {
         const prompt = cleanText(url.searchParams.get("prompt"), 100);
         const avatarUrl = cleanText(url.searchParams.get("avatarUrl"), 180);
         const accent = cleanText(url.searchParams.get("accent"), 20);
-        if (!title || !channel || !description) {
-          sendJson(response, 400, { error: "Titel, Profilname und Beschreibung fehlen." });
-          return;
-        }
+        // Nur das Video ist Pflicht – Titel, Profilname, Beschreibung, Impuls
+        // und Profilbild sind alle optional (im Feed gibt es Rückfallwerte).
         const videoUrl = await receiveUpload(request, "video");
         const video = {
           id: randomUUID(),
           title,
           channel,
           description,
-          prompt: prompt || "Gemeinsam besprechen",
+          prompt,
           videoUrl,
           avatarUrl: avatarUrl.startsWith("/uploads/") ? avatarUrl : "",
           accent: ["cyan", "yellow", "magenta", "green", "blue", "red"].includes(accent)
@@ -588,10 +619,11 @@ const server = createServer(async (request, response) => {
           return;
         }
         const payload = await readJson(request);
-        video.title = cleanText(payload.title, 80) || video.title;
-        video.channel = cleanText(payload.channel, 30) || video.channel;
-        video.description = cleanText(payload.description, 240) || video.description;
-        video.prompt = cleanText(payload.prompt, 100) || "Gemeinsam besprechen";
+        // Felder sind optional: ein leeres Feld leert den Wert (statt den alten zu behalten).
+        if (payload.title !== undefined) video.title = cleanText(payload.title, 80);
+        if (payload.channel !== undefined) video.channel = cleanText(payload.channel, 30);
+        if (payload.description !== undefined) video.description = cleanText(payload.description, 240);
+        if (payload.prompt !== undefined) video.prompt = cleanText(payload.prompt, 100);
         const accent = cleanText(payload.accent, 20);
         if (["cyan", "yellow", "magenta", "green", "blue", "red"].includes(accent)) {
           video.accent = accent;

@@ -575,6 +575,60 @@ select:focus {
   align-items: center;
 }
 
+/* Clip-Zeile bekommt vorne eine Spalte für die Sortier-Pfeile. */
+.video-row {
+  grid-template-columns: auto auto 1fr auto;
+}
+
+.reorder-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.move-video {
+  display: grid;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--black);
+  border-radius: 7px;
+  background: var(--white);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.move-video:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.reorder-note,
+.field-hint {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed rgba(0, 0, 0, 0.4);
+  background: var(--soft);
+  color: rgba(0, 0, 0, 0.66);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.field-hint {
+  font-weight: 700;
+}
+
+.video-form label em,
+.file-field em {
+  color: rgba(0, 0, 0, 0.42);
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 400;
+}
+
 .video-row.is-editing {
   display: block;
   background: var(--white);
@@ -691,6 +745,10 @@ select:focus {
   .video-row,
   .queue-row {
     grid-template-columns: auto 1fr;
+  }
+
+  .video-row {
+    grid-template-columns: auto auto 1fr;
   }
 
   .video-row > :last-child,

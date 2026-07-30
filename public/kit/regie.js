@@ -110,6 +110,9 @@ function render() {
   settingsForm.elements.workshopTitle.value = adminState.settings.workshopTitle;
   settingsForm.elements.published.checked = adminState.settings.published;
   settingsForm.elements.commentsEnabled.checked = adminState.settings.commentsEnabled;
+  settingsForm.elements.requireName.checked = adminState.settings.requireName !== false;
+  settingsForm.elements.showOverlay.checked = adminState.settings.showOverlay !== false;
+  settingsForm.elements.feedOrderRandom.checked = adminState.settings.feedOrder === "random";
 
   renderVideos();
   renderComments();
@@ -129,8 +132,10 @@ function renderVideos() {
     ["blue", "Blau"],
     ["red", "Rot"],
   ];
+  const totalVideos = adminState.videos.length;
+  const randomOrder = adminState.settings.feedOrder === "random";
   videoList.innerHTML = adminState.videos
-    .map((video) => {
+    .map((video, index) => {
       if (video.id === editingVideoId) {
         const options = accents
           .map(
@@ -158,12 +163,20 @@ function renderVideos() {
       const avatarMarkup = avatar
         ? `<img src="${avatar}" alt="" />`
         : escapeHtml((video.channel || "mp").slice(0, 2).toUpperCase());
+      const titleLabel = video.title ? escapeHtml(video.title) : "<em>(ohne Titel)</em>";
+      const channelLabel = video.channel ? escapeHtml(video.channel) : "ohne Profilname";
       return `
         <article class="video-row">
+          <div class="reorder-actions">
+            <button class="move-video" type="button" data-video-id="${escapeHtml(video.id)}" data-direction="-1"
+              aria-label="Nach oben" ${index === 0 ? "disabled" : ""}>↑</button>
+            <button class="move-video" type="button" data-video-id="${escapeHtml(video.id)}" data-direction="1"
+              aria-label="Nach unten" ${index === totalVideos - 1 ? "disabled" : ""}>↓</button>
+          </div>
           <div class="video-avatar">${avatarMarkup}</div>
           <div class="row-copy">
-            <strong>${escapeHtml(video.title)}</strong>
-            <span>${escapeHtml(video.channel)} · ${Number(video.likes || 0)} Likes</span>
+            <strong>${titleLabel}</strong>
+            <span>${channelLabel} · ${Number(video.likes || 0)} Likes</span>
           </div>
           <div class="row-actions">
             <button class="edit-video" type="button" data-video-id="${escapeHtml(video.id)}">Bearbeiten</button>
@@ -174,8 +187,20 @@ function renderVideos() {
     })
     .join("");
 
+  if (randomOrder && totalVideos > 1) {
+    videoList.insertAdjacentHTML(
+      "afterbegin",
+      '<div class="reorder-note">Reihenfolge steht auf „zufällig“ – jedes iPad mischt selbst. Die Sortierung hier gilt, sobald du wieder auf feste Reihenfolge umstellst.</div>',
+    );
+  }
+
   videoList.querySelectorAll(".delete-video").forEach((button) => {
     button.addEventListener("click", () => deleteVideo(button.dataset.videoId));
+  });
+  videoList.querySelectorAll(".move-video").forEach((button) => {
+    button.addEventListener("click", () =>
+      moveVideo(button.dataset.videoId, Number(button.dataset.direction)),
+    );
   });
   videoList.querySelectorAll(".edit-video").forEach((button) => {
     button.addEventListener("click", () => {
@@ -268,6 +293,9 @@ async function saveSettings(event) {
         workshopTitle: settingsForm.elements.workshopTitle.value,
         published: settingsForm.elements.published.checked,
         commentsEnabled: settingsForm.elements.commentsEnabled.checked,
+        requireName: settingsForm.elements.requireName.checked,
+        showOverlay: settingsForm.elements.showOverlay.checked,
+        feedOrder: settingsForm.elements.feedOrderRandom.checked ? "random" : "custom",
       }),
     });
     showToast("Workshop-Einstellungen gespeichert");
@@ -368,6 +396,24 @@ async function deleteVideo(videoId) {
     await refreshState();
   } catch (error) {
     showToast(error.message);
+  }
+}
+
+async function moveVideo(videoId, direction) {
+  const ids = adminState.videos.map((video) => video.id);
+  const from = ids.indexOf(videoId);
+  const to = from + direction;
+  if (from < 0 || to < 0 || to >= ids.length) return;
+  [ids[from], ids[to]] = [ids[to], ids[from]];
+  // Optimistisch lokal umsortieren, damit es sofort reagiert.
+  adminState.videos = ids.map((id) => adminState.videos.find((video) => video.id === id));
+  renderVideos();
+  try {
+    await api("reorder", { method: "POST", body: JSON.stringify({ order: ids }) });
+    await refreshState();
+  } catch (error) {
+    if (error.message !== "unauthorized") showToast(error.message);
+    await refreshState();
   }
 }
 
