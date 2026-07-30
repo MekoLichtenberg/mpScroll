@@ -40,6 +40,11 @@ const contentTypes = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
+  ".mp3": "audio/mpeg",
+  ".m4a": "audio/mp4",
+  ".ogg": "audio/ogg",
+  ".wav": "audio/wav",
+  ".weba": "audio/webm",
 };
 
 const uploadExtensions = {
@@ -48,6 +53,13 @@ const uploadExtensions = {
   "image/png": ".png",
   "image/jpeg": ".jpg",
   "image/webp": ".webp",
+  "audio/mpeg": ".mp3",
+  "audio/mp4": ".m4a",
+  "audio/x-m4a": ".m4a",
+  "audio/ogg": ".ogg",
+  "audio/wav": ".wav",
+  "audio/x-wav": ".wav",
+  "audio/webm": ".weba",
 };
 
 function defaultState() {
@@ -188,21 +200,25 @@ async function readJson(request, limit = 256_000) {
   return JSON.parse(body || "{}");
 }
 
+// kind: "video" | "image" | "avatar" | "audio"
+const uploadKinds = {
+  video: { prefix: "video/", maxBytes: 250 * 1024 * 1024, typeError: "Bitte MP4 oder WebM auswählen.", sizeError: "Das Video darf maximal 250 MB groß sein." },
+  image: { prefix: "image/", maxBytes: 20 * 1024 * 1024, typeError: "Bitte PNG, JPG oder WebP auswählen.", sizeError: "Das Bild darf maximal 20 MB groß sein." },
+  avatar: { prefix: "image/", maxBytes: 3 * 1024 * 1024, typeError: "Bitte PNG, JPG oder WebP auswählen.", sizeError: "Das Profilbild darf maximal 3 MB groß sein." },
+  audio: { prefix: "audio/", maxBytes: 40 * 1024 * 1024, typeError: "Bitte MP3, M4A, OGG oder WAV auswählen.", sizeError: "Die Musik darf maximal 40 MB groß sein." },
+};
+
 async function receiveUpload(request, kind) {
+  const rules = uploadKinds[kind];
   const contentType = String(request.headers["content-type"] || "").split(";")[0];
   const extension = uploadExtensions[contentType];
-  const isVideo = contentType.startsWith("video/");
-  const isImage = contentType.startsWith("image/");
-  const maxBytes = kind === "video" ? 250 * 1024 * 1024 : 3 * 1024 * 1024;
   const contentLength = Number(request.headers["content-length"] || 0);
 
-  if ((kind === "video" && !isVideo) || (kind === "avatar" && !isImage) || !extension) {
-    throw new Error(kind === "video" ? "Bitte MP4 oder WebM auswählen." : "Bitte PNG, JPG oder WebP auswählen.");
+  if (!rules || !contentType.startsWith(rules.prefix) || !extension) {
+    throw new Error(rules ? rules.typeError : "Unbekannter Upload-Typ.");
   }
-  if (!contentLength || contentLength > maxBytes) {
-    throw new Error(
-      kind === "video" ? "Das Video darf maximal 250 MB groß sein." : "Das Profilbild darf maximal 3 MB groß sein.",
-    );
+  if (!contentLength || contentLength > rules.maxBytes) {
+    throw new Error(rules.sizeError);
   }
 
   const filename = `${randomUUID()}${extension}`;
@@ -581,6 +597,12 @@ const server = createServer(async (request, response) => {
         return;
       }
 
+      if (url.pathname === "/api/admin/audio" && request.method === "POST") {
+        const uploadedUrl = await receiveUpload(request, "audio");
+        sendJson(response, 201, { url: uploadedUrl });
+        return;
+      }
+
       if (url.pathname === "/api/admin/video" && request.method === "POST") {
         const title = cleanText(url.searchParams.get("title"), 80);
         const channel = cleanText(url.searchParams.get("channel"), 30);
@@ -588,16 +610,20 @@ const server = createServer(async (request, response) => {
         const prompt = cleanText(url.searchParams.get("prompt"), 100);
         const avatarUrl = cleanText(url.searchParams.get("avatarUrl"), 180);
         const accent = cleanText(url.searchParams.get("accent"), 20);
-        // Nur das Video ist Pflicht – Titel, Profilname, Beschreibung, Impuls
-        // und Profilbild sind alle optional (im Feed gibt es Rückfallwerte).
-        const videoUrl = await receiveUpload(request, "video");
+        const audioUrl = cleanText(url.searchParams.get("audioUrl"), 180);
+        // "image" = Bild-Clip (optional mit Hintergrundmusik), sonst klassisches Video.
+        const isImage = url.searchParams.get("mediaType") === "image";
+        // Nur die Mediendatei ist Pflicht – alle Textangaben und das Profilbild sind optional.
+        const mediaUrl = await receiveUpload(request, isImage ? "image" : "video");
         const video = {
           id: randomUUID(),
+          mediaType: isImage ? "image" : "video",
           title,
           channel,
           description,
           prompt,
-          videoUrl,
+          videoUrl: mediaUrl,
+          audioUrl: isImage && audioUrl.startsWith("/uploads/") ? audioUrl : "",
           avatarUrl: avatarUrl.startsWith("/uploads/") ? avatarUrl : "",
           accent: ["cyan", "yellow", "magenta", "green", "blue", "red"].includes(accent)
             ? accent
@@ -644,6 +670,7 @@ const server = createServer(async (request, response) => {
         state.comments = state.comments.filter((comment) => comment.clipId !== videoId);
         await removeUploadedFile(video.videoUrl);
         await removeUploadedFile(video.avatarUrl);
+        await removeUploadedFile(video.audioUrl);
         await persistState();
         sendJson(response, 200, { deleted: true });
         return;

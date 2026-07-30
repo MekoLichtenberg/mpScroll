@@ -268,35 +268,6 @@ textarea {
   color: var(--black);
 }
 
-.top-actions {
-  justify-self: end;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.speed-button {
-  display: grid;
-  min-width: 35px;
-  height: 35px;
-  padding: 0 9px;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.58);
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.32);
-  color: var(--white);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  cursor: pointer;
-}
-
-.speed-button.is-fast {
-  border-color: var(--cyan);
-  background: var(--cyan);
-  color: var(--black);
-}
-
 .status-pill {
   position: absolute;
   z-index: 18;
@@ -332,6 +303,26 @@ textarea {
   text-transform: uppercase;
 }
 
+/* Kopfleiste + Statuszeile dimmen sich nach ein paar Sekunden weg, damit sie
+   nicht dauerhaft überm Video liegen. Der Ton-Knopf bleibt erreichbar. */
+.topbar,
+.status-pill,
+.brand,
+.feed-tabs {
+  transition: opacity 400ms ease, background 400ms ease;
+}
+
+.phone-stage.chrome-dimmed .status-pill,
+.phone-stage.chrome-dimmed .brand,
+.phone-stage.chrome-dimmed .feed-tabs {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.phone-stage.chrome-dimmed .topbar {
+  background: transparent;
+}
+
 .feed {
   width: 100%;
   height: 100%;
@@ -359,7 +350,8 @@ textarea {
   color: var(--white);
 }
 
-.clip-video {
+.clip-video,
+.clip-image {
   position: absolute;
   z-index: 2;
   inset: 0;
@@ -368,8 +360,26 @@ textarea {
   object-fit: cover;
 }
 
-.clip.has-video-error .clip-video {
+.clip.has-video-error .clip-video,
+.clip.has-video-error .clip-image {
   display: none;
+}
+
+/* Kurz eingeblendetes „2×", solange man fürs Vorspulen gedrückt hält. */
+.clip.is-fast::after {
+  position: absolute;
+  z-index: 13;
+  top: calc(74px + env(safe-area-inset-top));
+  left: 50%;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 800;
+  content: "2× ⏩";
+  transform: translateX(-50%);
+  backdrop-filter: blur(6px);
 }
 
 .motion-fallback {
@@ -512,6 +522,7 @@ textarea {
   flex-direction: column;
   gap: 16px;
   align-items: center;
+  opacity: 0.9;
 }
 
 .avatar,
@@ -559,11 +570,11 @@ textarea {
   width: 47px;
   height: 47px;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.46);
+  border: 1px solid rgba(255, 255, 255, 0.34);
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.38);
+  background: rgba(0, 0, 0, 0.22);
   font-size: 22px;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(8px);
   transition: 160ms ease;
 }
 

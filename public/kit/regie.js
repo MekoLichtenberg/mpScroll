@@ -17,6 +17,7 @@ let adminState = null;
 let editingVideoId = null;
 let toastTimer;
 let pollTimer;
+let currentMode = "video"; // "video" oder "image" (Bild + Musik)
 
 function apiUrl(path) {
   return new URL(`../api/admin/${path}`, window.location.href).toString();
@@ -165,6 +166,8 @@ function renderVideos() {
         : escapeHtml((video.channel || "mp").slice(0, 2).toUpperCase());
       const titleLabel = video.title ? escapeHtml(video.title) : "<em>(ohne Titel)</em>";
       const channelLabel = video.channel ? escapeHtml(video.channel) : "ohne Profilname";
+      const typeLabel =
+        video.mediaType === "image" ? (video.audioUrl ? " · Bild + Musik" : " · Bild") : "";
       return `
         <article class="video-row">
           <div class="reorder-actions">
@@ -176,7 +179,7 @@ function renderVideos() {
           <div class="video-avatar">${avatarMarkup}</div>
           <div class="row-copy">
             <strong>${titleLabel}</strong>
-            <span>${channelLabel} · ${Number(video.likes || 0)} Likes</span>
+            <span>${channelLabel} · ${Number(video.likes || 0)} Likes${typeLabel}</span>
           </div>
           <div class="row-actions">
             <button class="edit-video" type="button" data-video-id="${escapeHtml(video.id)}">Bearbeiten</button>
@@ -336,28 +339,43 @@ function uploadFile(path, file, query = {}, onProgress = () => {}) {
 async function addVideo(event) {
   event.preventDefault();
   const submitButton = videoForm.querySelector("button[type='submit']");
-  const videoFile = videoForm.elements.video.files[0];
-  const avatarFile = videoForm.elements.avatar.files[0];
-  if (!videoFile) return;
+  const isImage = currentMode === "image";
+  const mainFile = isImage
+    ? videoForm.elements.image.files[0]
+    : videoForm.elements.video.files[0];
+  const avatarFile = isImage ? null : videoForm.elements.avatar.files[0];
+  const audioFile = isImage ? videoForm.elements.audio.files[0] : null;
+  if (!mainFile) {
+    formMessage.textContent = isImage ? "Bitte ein Bild auswählen." : "Bitte ein Video auswählen.";
+    return;
+  }
 
   submitButton.disabled = true;
   progress.hidden = false;
   progressBar.style.width = "2%";
-  formMessage.textContent = "Profilbild und Video werden vorbereitet …";
+  formMessage.textContent = "Wird vorbereitet …";
 
   try {
+    const fields = Object.fromEntries(new FormData(videoForm).entries());
     let avatarUrl = "";
+    let audioUrl = "";
     if (avatarFile) {
       const avatarResult = await uploadFile("avatar", avatarFile, {}, (ratio) => {
-        progressBar.style.width = `${Math.round(ratio * 15)}%`;
+        progressBar.style.width = `${Math.round(ratio * 10)}%`;
       });
       avatarUrl = avatarResult.url;
     }
+    if (audioFile) {
+      formMessage.textContent = "Musik wird übertragen …";
+      const audioResult = await uploadFile("audio", audioFile, {}, (ratio) => {
+        progressBar.style.width = `${Math.round(ratio * 30)}%`;
+      });
+      audioUrl = audioResult.url;
+    }
 
-    const fields = Object.fromEntries(new FormData(videoForm).entries());
     const result = await uploadFile(
       "video",
-      videoFile,
+      mainFile,
       {
         title: fields.title,
         channel: fields.channel,
@@ -365,15 +383,19 @@ async function addVideo(event) {
         prompt: fields.prompt,
         accent: fields.accent,
         avatarUrl,
+        audioUrl,
+        mediaType: isImage ? "image" : "video",
       },
       (ratio) => {
-        progressBar.style.width = `${15 + Math.round(ratio * 85)}%`;
-        formMessage.textContent = `Video wird übertragen … ${Math.round(ratio * 100)} %`;
+        progressBar.style.width = `${30 + Math.round(ratio * 70)}%`;
+        formMessage.textContent = `${isImage ? "Bild" : "Video"} wird übertragen … ${Math.round(ratio * 100)} %`;
       },
     );
     progressBar.style.width = "100%";
-    formMessage.textContent = `„${result.video.title}“ ist jetzt im Feed.`;
+    const label = result.video.title || (isImage ? "Bild-Clip" : "Clip");
+    formMessage.textContent = `„${label}“ ist jetzt im Feed.`;
     videoForm.reset();
+    setMode("video");
     showToast("Clip erfolgreich hinzugefügt");
     await refreshState();
   } catch (error) {
@@ -387,9 +409,22 @@ async function addVideo(event) {
   }
 }
 
+// Umschalter Video / Bild+Musik: passenden Dateibereich zeigen, den anderen ausblenden.
+function setMode(mode) {
+  currentMode = mode === "image" ? "image" : "video";
+  videoForm.querySelectorAll(".mode-option").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.mode === currentMode);
+  });
+  videoForm.querySelectorAll("[data-media]").forEach((grid) => {
+    grid.hidden = grid.dataset.media !== currentMode;
+  });
+  formMessage.textContent = "";
+}
+
 async function deleteVideo(videoId) {
   const video = adminState.videos.find((item) => item.id === videoId);
-  if (!video || !window.confirm(`„${video.title}“ wirklich aus dem Feed entfernen?`)) return;
+  const name = video?.title || "Dieser Clip";
+  if (!video || !window.confirm(`„${name}“ wirklich aus dem Feed entfernen?`)) return;
   try {
     await api(`video/${encodeURIComponent(videoId)}`, { method: "DELETE" });
     showToast("Clip entfernt");
@@ -438,6 +473,9 @@ pinForm.addEventListener("submit", (event) => {
 
 settingsForm.addEventListener("submit", saveSettings);
 videoForm.addEventListener("submit", addVideo);
+videoForm.querySelectorAll(".mode-option").forEach((button) => {
+  button.addEventListener("click", () => setMode(button.dataset.mode));
+});
 
 document.querySelector(".logout-button").addEventListener("click", () => lockDashboard());
 document.querySelector(".regen-pin").addEventListener("click", async () => {

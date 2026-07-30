@@ -50,7 +50,6 @@ const fallbackFeed = {
 const feedElement = document.querySelector(".feed");
 const phoneStage = document.querySelector(".phone-stage");
 const soundButton = document.querySelector(".sound-button");
-const speedButton = document.querySelector(".speed-button");
 const statusMode = document.querySelector(".status-mode");
 const workshopLabel = document.querySelector(".workshop-label");
 const toast = document.querySelector(".toast");
@@ -75,9 +74,6 @@ let localState = loadLocalState();
 let feedData = fallbackFeed;
 let serverMode = false;
 let soundOn = false;
-const speedSteps = [1, 1.5, 2];
-let speedIndex = 0;
-let playbackSpeed = 1;
 let randomOrder = null; // gemerkte Zufallsreihenfolge (nur bei feedOrder === "random")
 let clips = [];
 let observer;
@@ -187,24 +183,48 @@ function setToast(message) {
   toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 1700);
 }
 
-function avatarMarkup(video) {
-  const avatar = safeUrl(video.avatarUrl);
-  if (avatar) {
-    return `<img src="${avatar}" alt="" />`;
-  }
-  return escapeHtml((video.channel || "mp").slice(0, 2).toUpperCase());
-}
-
 function clipMarkup(video, index) {
   const accent = accentName(video.accent);
-  const title = escapeHtml(video.title);
-  const channel = escapeHtml(video.channel || "Workshop");
-  const description = escapeHtml(video.description || "");
-  const prompt = escapeHtml(video.prompt || "Gemeinsam besprechen");
-  const videoUrl = safeUrl(video.videoUrl);
+  const mediaUrl = safeUrl(video.videoUrl);
+  const audioUrl = safeUrl(video.audioUrl);
+  const isImage = video.mediaType === "image";
   const comments = feedData.comments?.[video.id] || [];
   const count = localState.counts[video.id] ?? video.likes ?? 0;
   const liked = Boolean(localState.liked[video.id]);
+
+  // Leere Angaben werden gar nicht erst eingeblendet – nichts legt sich unnötig
+  // über das Video. Nur was wirklich befüllt ist, erscheint.
+  const topicHtml = video.channel ? `<span class="topic">#${escapeHtml(video.channel)}</span>` : "";
+  const titleHtml = video.title ? `<h2>${escapeHtml(video.title)}</h2>` : "";
+  const descHtml = video.description ? `<p>${escapeHtml(video.description)}</p>` : "";
+  const promptHtml = video.prompt
+    ? `<div class="prompt"><span>?</span>${escapeHtml(video.prompt)}</div>`
+    : "";
+  const copyInner = topicHtml + titleHtml + descHtml + promptHtml;
+  const copyHtml = copyInner ? `<div class="clip-copy">${copyInner}</div>` : "";
+
+  const avatar = safeUrl(video.avatarUrl);
+  const avatarHtml = avatar ? `<div class="avatar"><img src="${avatar}" alt="" /></div>` : "";
+
+  // Bild-Clip (optional mit Hintergrundmusik) oder klassischer Video-Clip.
+  const mediaHtml = isImage
+    ? `<img class="clip-media clip-image" src="${mediaUrl}" alt="" />` +
+      (audioUrl
+        ? `<audio class="clip-audio" src="${audioUrl}" loop preload="metadata"></audio>`
+        : "")
+    : `<video class="clip-media clip-video" src="${mediaUrl}" muted loop playsinline preload="metadata"></video>`;
+
+  // Zeitleiste + Pause nur, wenn es etwas Abspielbares gibt (Video oder Bild+Musik).
+  const hasTimeline = !isImage || Boolean(audioUrl);
+  const scrubberHtml = hasTimeline
+    ? `<div class="pause-indicator" aria-hidden="true">▶</div>
+      <div class="scrubber" role="slider" aria-label="Im Clip spulen" tabindex="-1">
+        <div class="scrubber-track">
+          <div class="scrubber-fill"></div>
+          <div class="scrubber-knob"></div>
+        </div>
+      </div>`
+    : "";
 
   return `
     <article
@@ -213,24 +233,12 @@ function clipMarkup(video, index) {
       data-base-likes="${Number(video.likes || 0)}"
       ${index === 0 ? 'id="first-clip"' : ""}
     >
-      <video
-        class="clip-video"
-        src="${videoUrl}"
-        muted
-        loop
-        playsinline
-        preload="metadata"
-      ></video>
+      ${mediaHtml}
       <div class="motion-fallback" aria-hidden="true"></div>
       <div class="clip-shade"></div>
-      <div class="clip-copy">
-        <span class="topic">#${channel}</span>
-        <h2>${title}</h2>
-        <p>${description}</p>
-        <div class="prompt"><span>?</span>${prompt}</div>
-      </div>
+      ${copyHtml}
       <aside class="action-rail" aria-label="Aktionen für diesen Clip">
-        <div class="avatar" aria-label="Profil ${channel}">${avatarMarkup(video)}</div>
+        ${avatarHtml}
         <button
           class="like-button${liked ? " is-liked" : ""}"
           type="button"
@@ -245,13 +253,7 @@ function clipMarkup(video, index) {
           <strong class="comment-count">${comments.length}</strong>
         </button>
       </aside>
-      <div class="pause-indicator" aria-hidden="true">▶</div>
-      <div class="scrubber" role="slider" aria-label="Im Video spulen" tabindex="-1">
-        <div class="scrubber-track">
-          <div class="scrubber-fill"></div>
-          <div class="scrubber-knob"></div>
-        </div>
-      </div>
+      ${scrubberHtml}
     </article>
   `;
 }
@@ -320,62 +322,88 @@ function setupClips() {
 
   clips.forEach((clip) => {
     observer.observe(clip);
-    const video = clip.querySelector("video");
+    // Abspielbares Element: <video> beim Video-Clip, <audio> beim Bild-mit-Musik.
+    const media = clip.querySelector("video, audio");
     const likeButton = clip.querySelector(".like-button");
     const commentButton = clip.querySelector(".comment-button");
     const scrubber = clip.querySelector(".scrubber");
-    const fill = clip.querySelector(".scrubber-fill");
-    const knob = clip.querySelector(".scrubber-knob");
     let lastTap = 0;
     let singleTapTimer = 0;
+    let holdTimer = 0;
+    let holding = false;
 
-    video.addEventListener("error", () => clip.classList.add("has-video-error"));
+    clip.querySelector("img.clip-image")?.addEventListener("error", () =>
+      clip.classList.add("has-video-error"),
+    );
+    media?.addEventListener("error", () => clip.classList.add("has-video-error"));
     likeButton.addEventListener("click", () => toggleLike(clip));
     commentButton.addEventListener("click", () => openComments(clip.dataset.clipId));
 
-    // Fortschrittsleiste mitlaufen lassen (außer während man selbst zieht).
-    function paintProgress(ratio) {
-      const percent = `${Math.min(100, Math.max(0, ratio * 100))}%`;
-      fill.style.width = percent;
-      knob.style.left = percent;
+    // Fortschrittsleiste + Spulen – nur wenn es eine Leiste und Abspielbares gibt.
+    if (scrubber && media) {
+      const fill = clip.querySelector(".scrubber-fill");
+      const knob = clip.querySelector(".scrubber-knob");
+      const paintProgress = (ratio) => {
+        const percent = `${Math.min(100, Math.max(0, ratio * 100))}%`;
+        fill.style.width = percent;
+        knob.style.left = percent;
+      };
+      media.addEventListener("timeupdate", () => {
+        if (clip.classList.contains("is-scrubbing")) return;
+        paintProgress(media.duration ? media.currentTime / media.duration : 0);
+      });
+      const seekFromEvent = (event) => {
+        const rect = scrubber.getBoundingClientRect();
+        const ratio = rect.width ? (event.clientX - rect.left) / rect.width : 0;
+        paintProgress(ratio);
+        if (media.duration) media.currentTime = Math.min(1, Math.max(0, ratio)) * media.duration;
+      };
+      scrubber.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+        clip.classList.add("is-scrubbing");
+        try {
+          scrubber.setPointerCapture(event.pointerId);
+        } catch {
+          /* Pointer-Capture ist nicht überall verfügbar – Seek läuft trotzdem. */
+        }
+        seekFromEvent(event);
+      });
+      scrubber.addEventListener("pointermove", (event) => {
+        if (clip.classList.contains("is-scrubbing")) seekFromEvent(event);
+      });
+      const endScrub = (event) => {
+        if (!clip.classList.contains("is-scrubbing")) return;
+        event.stopPropagation();
+        clip.classList.remove("is-scrubbing");
+      };
+      scrubber.addEventListener("pointerup", endScrub);
+      scrubber.addEventListener("pointercancel", endScrub);
     }
-    video.addEventListener("timeupdate", () => {
-      if (clip.classList.contains("is-scrubbing")) return;
-      paintProgress(video.duration ? video.currentTime / video.duration : 0);
-    });
 
-    // Mit dem Finger in der Leiste ziehen = im Clip vor-/zurückspulen (TikTok-Stil).
-    // Pointer Events decken Touch und Maus gemeinsam ab.
-    function seekFromEvent(event) {
-      const rect = scrubber.getBoundingClientRect();
-      const ratio = rect.width ? (event.clientX - rect.left) / rect.width : 0;
-      paintProgress(ratio);
-      if (video.duration) video.currentTime = Math.min(1, Math.max(0, ratio)) * video.duration;
-    }
-    scrubber.addEventListener("pointerdown", (event) => {
-      event.stopPropagation();
-      clip.classList.add("is-scrubbing");
-      try {
-        scrubber.setPointerCapture(event.pointerId);
-      } catch {
-        /* Pointer-Capture ist nicht überall verfügbar – Seek läuft trotzdem. */
+    // Gesten: kurz tippen = Pause/Weiter · doppelt tippen = Like ·
+    // gedrückt halten = 2× im Schnelldurchlauf (wie bei TikTok), loslassen = normal.
+    const endHold = () => {
+      window.clearTimeout(holdTimer);
+      if (holding) {
+        holding = false;
+        stopFastForward(clip);
       }
-      seekFromEvent(event);
-    });
-    scrubber.addEventListener("pointermove", (event) => {
-      if (clip.classList.contains("is-scrubbing")) seekFromEvent(event);
-    });
-    const endScrub = (event) => {
-      if (!clip.classList.contains("is-scrubbing")) return;
-      event.stopPropagation();
-      clip.classList.remove("is-scrubbing");
     };
-    scrubber.addEventListener("pointerup", endScrub);
-    scrubber.addEventListener("pointercancel", endScrub);
-
-    // Einmal tippen = Pause/Weiter · doppelt tippen = Like (wie bei TikTok).
+    clip.addEventListener("pointerdown", (event) => {
+      if (event.target.closest("button, a, textarea, .scrubber")) return;
+      holding = false;
+      window.clearTimeout(holdTimer);
+      holdTimer = window.setTimeout(() => {
+        holding = true;
+        window.clearTimeout(singleTapTimer); // dann kein Pause-Tipp auslösen
+        startFastForward(clip);
+      }, 240);
+    });
     clip.addEventListener("pointerup", (event) => {
       if (event.target.closest("button, a, textarea, .scrubber")) return;
+      const wasHolding = holding;
+      endHold();
+      if (wasHolding) return; // Halten war der Schnelldurchlauf – nicht als Tipp werten.
       const now = Date.now();
       const isDouble = now - lastTap < 330;
       lastTap = now;
@@ -386,9 +414,26 @@ function setupClips() {
       }
       singleTapTimer = window.setTimeout(() => handleTap(clip), 250);
     });
+    clip.addEventListener("pointercancel", endHold);
   });
 
   if (clips[0]) setActiveClip(clips[0]);
+  wakeChrome();
+}
+
+// Gedrückt halten → 2×; nur Video wird beschleunigt (Musik nicht verzerren).
+function startFastForward(clip) {
+  const video = clip.querySelector("video");
+  if (!video) return;
+  video.playbackRate = 2;
+  clip.classList.add("is-fast");
+  video.play().catch(() => {});
+}
+function stopFastForward(clip) {
+  const video = clip.querySelector("video");
+  if (!video) return;
+  video.playbackRate = 1;
+  clip.classList.remove("is-fast");
 }
 
 // Ein einzelner Tipp: erst Ton freischalten (iOS-Regel), danach Pause/Weiter.
@@ -403,12 +448,13 @@ function handleTap(clip) {
 }
 
 function togglePause(clip) {
-  const video = clip.querySelector("video");
-  if (video.paused) {
-    video.play().catch(() => {});
+  const media = clip.querySelector("video, audio");
+  if (!media) return; // statisches Bild ohne Musik – nichts zu pausieren
+  if (media.paused) {
+    media.play().catch(() => {});
     clip.classList.remove("is-paused");
   } else {
-    video.pause();
+    media.pause();
     clip.classList.add("is-paused");
   }
 }
@@ -416,16 +462,17 @@ function togglePause(clip) {
 function setActiveClip(activeClip) {
   activeClipId = activeClip?.dataset.clipId || null;
   clips.forEach((clip) => {
-    const video = clip.querySelector("video");
+    const media = clip.querySelector("video, audio");
     const isActive = clip === activeClip;
     clip.classList.toggle("is-active", isActive);
-    clip.classList.remove("is-paused");
+    clip.classList.remove("is-paused", "is-fast");
+    if (!media) return; // statisches Bild
+    media.playbackRate = 1;
     if (isActive) {
-      video.muted = !soundOn;
-      video.playbackRate = playbackSpeed;
-      video.play().catch(() => {});
+      media.muted = !soundOn;
+      media.play().catch(() => {});
     } else {
-      video.pause();
+      media.pause();
     }
   });
 }
@@ -622,7 +669,8 @@ function applySound() {
   soundButton.classList.toggle("is-on", soundOn);
   soundButton.setAttribute("aria-label", soundOn ? "Ton ausschalten" : "Ton einschalten");
   clips.forEach((clip) => {
-    clip.querySelector("video").muted = !soundOn;
+    const media = clip.querySelector("video, audio");
+    if (media) media.muted = !soundOn;
   });
 }
 
@@ -641,7 +689,7 @@ function unlockSound() {
   soundOn = true;
   applySound();
   const active = clips.find((clip) => clip.dataset.clipId === activeClipId);
-  active?.querySelector("video")?.play().catch(() => {});
+  active?.querySelector("video, audio")?.play().catch(() => {});
   setToast("Ton an");
 }
 
@@ -658,7 +706,7 @@ function startWorkshop() {
   soundOn = true;
   applySound();
   const active = clips.find((clip) => clip.dataset.clipId === activeClipId);
-  active?.querySelector("video")?.play().catch(() => {});
+  active?.querySelector("video, audio")?.play().catch(() => {});
   startOverlay.hidden = true;
   setToast("Los geht’s – Ton an");
 }
@@ -675,21 +723,16 @@ soundButton.addEventListener("click", () => {
   setToast(soundOn ? "Ton an" : "Ton aus");
 });
 
-// Wiedergabe-Geschwindigkeit durchschalten: 1× → 1,5× → 2× → 1× …
-function applySpeed() {
-  const label = `${String(playbackSpeed).replace(".", ",")}×`;
-  speedButton.textContent = label;
-  speedButton.classList.toggle("is-fast", playbackSpeed !== 1);
-  clips.forEach((clip) => {
-    clip.querySelector("video").playbackRate = playbackSpeed;
-  });
-  setToast(`Tempo ${label}`);
+// Bedien-Elemente oben (Statuszeile + Kopfleiste) legen sich nur kurz übers Video
+// und dimmen sich dann weg – wie bei TikTok. Jede Berührung/Scroll holt sie zurück.
+let chromeTimer;
+function wakeChrome() {
+  phoneStage.classList.remove("chrome-dimmed");
+  window.clearTimeout(chromeTimer);
+  chromeTimer = window.setTimeout(() => phoneStage.classList.add("chrome-dimmed"), 3500);
 }
-speedButton.addEventListener("click", () => {
-  speedIndex = (speedIndex + 1) % speedSteps.length;
-  playbackSpeed = speedSteps[speedIndex];
-  applySpeed();
-});
+feedElement.addEventListener("pointerdown", wakeChrome);
+feedElement.addEventListener("scroll", wakeChrome, { passive: true });
 
 // Endlosschleife: hinter dem letzten Clip geht es wieder beim ersten los
 // (und über dem ersten Clip landet man am letzten).
