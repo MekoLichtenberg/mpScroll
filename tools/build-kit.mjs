@@ -102,7 +102,7 @@ function anleitung(startFile) {
     "Es muss NICHTS installiert werden. Node steckt schon im Ordner.",
     "",
     `1. Doppelklick auf  ${startFile}`,
-    "2. Es öffnet sich die Regie im Browser. Regie-PIN eingeben (Standard: 2468).",
+    "2. Es öffnet sich die Regie im Browser (ohne PIN – nur auf diesem Laptop erreichbar).",
     "3. Clips hochladen, Feed freigeben – fertig.",
     "   Die Wand-Ansicht an den Beamer geben, die iPads scannen den QR-Code.",
     "",

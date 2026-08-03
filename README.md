@@ -26,7 +26,8 @@ Oben die ZIP über den grünen <> Code Button downloaden.
 
 1. **Starten** – Im Ordner auf Windows: `STARTEN-WINDOWS.cmd` · Mac: `STARTEN-MAC.command`
    klicken.
-2. Die **Regie** öffnet sich im Browser. Mit der Regie-PIN `2468` anmelden (kann bei Wunsch geändert werden, aber Kontrolle geht NUR über den PC, der das Tool hostet)
+2. Die **Regie** öffnet sich direkt im Browser – ohne PIN, denn sie ist nur über
+   den Host-Laptop selbst (localhost) erreichbar; andere Geräte im WLAN kommen nicht dran.
    Clips hochladen (MP4/WebM, Hochformat 9:16, am besten 720p), Feed freigeben (Muss man nur einmal machen, alles bleibt für das nächste mal gespeichert)
 3. Die **Wand-Ansicht** (`http://localhost:4173/wand`) an den Beamer geben über erweitertes Display.
    Die iPads scannen den QR-Code und kommen **direkt** in den Feed.
@@ -48,12 +49,15 @@ werden (bei Bedarf `chmod +x STARTEN-MAC.command`).
   </tr>
 </table>
 
-## Zwei PINs
+## Zugang & Schutz
 
-| PIN | wofür | Schutz |
-|---|---|---|
-| **Regie-PIN** (`2468`) | Steuerung am Laptop | Die Regie ist **nur über localhost** erreichbar – andere Geräte im WLAN können sie nicht öffnen. Änderbar über `MPSCROLL_PIN`. |
-| **Workshop-PIN** | iPads betreten den Feed | Wird zufällig erzeugt, steht auf der Wand-Ansicht, in der Regie jederzeit neu erzeugbar. |
+Die **Regie** (Steuerung am Laptop) braucht keine PIN – sie ist ausschließlich
+über den Host-Laptop selbst (**localhost**) erreichbar, andere Geräte im WLAN
+können sie nicht öffnen.
+
+Die **Workshop-PIN** schützt den Feed: nur damit betreten die iPads den Feed.
+Sie wird zufällig erzeugt, steht auf der Wand-Ansicht und ist in der Regie
+jederzeit neu erzeugbar.
 
 Kommentare erscheinen nie automatisch – sie werden erst nach Freigabe in der
 Regie sichtbar. Teilnehmende geben keine Namen oder E-Mail-Adressen an.

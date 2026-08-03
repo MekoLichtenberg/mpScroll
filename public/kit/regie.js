@@ -1,8 +1,3 @@
-const pinScreen = document.querySelector(".pin-screen");
-const dashboard = document.querySelector(".dashboard");
-const pinForm = document.querySelector(".pin-form");
-const pinInput = document.querySelector("#pin");
-const pinError = document.querySelector(".pin-error");
 const settingsForm = document.querySelector(".settings-form");
 const videoForm = document.querySelector(".video-form");
 const videoList = document.querySelector(".video-list");
@@ -12,7 +7,6 @@ const progressBar = progress.querySelector("span");
 const formMessage = document.querySelector(".form-message");
 const adminToast = document.querySelector(".admin-toast");
 
-let adminPin = sessionStorage.getItem("mpscroll-admin-pin") || "";
 let adminState = null;
 let editingVideoId = null;
 let toastTimer;
@@ -47,42 +41,25 @@ async function api(path, options = {}) {
   const response = await fetch(apiUrl(path), {
     ...options,
     headers: {
-      "X-Admin-Pin": adminPin,
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.headers || {}),
     },
     cache: "no-store",
   });
-  if (response.status === 401) {
-    lockDashboard("Die PIN stimmt nicht oder wurde geändert.");
-    throw new Error("unauthorized");
-  }
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || "Aktion fehlgeschlagen");
   return payload;
 }
 
-function lockDashboard(message = "") {
-  window.clearInterval(pollTimer);
-  adminPin = "";
-  sessionStorage.removeItem("mpscroll-admin-pin");
-  dashboard.hidden = true;
-  pinScreen.hidden = false;
-  pinError.textContent = message;
-  pinInput.focus();
-}
-
-async function unlockDashboard() {
+// Die Regie ist ohne PIN direkt nutzbar (nur vom Host-Laptop erreichbar).
+async function loadDashboard() {
   try {
     adminState = await api("state");
-    sessionStorage.setItem("mpscroll-admin-pin", adminPin);
-    pinScreen.hidden = true;
-    dashboard.hidden = false;
     render();
     window.clearInterval(pollTimer);
     pollTimer = window.setInterval(refreshState, 3000);
   } catch (error) {
-    if (error.message !== "unauthorized") pinError.textContent = error.message;
+    showToast(error.message || "Regie konnte nicht geladen werden.");
   }
 }
 
@@ -316,7 +293,6 @@ function uploadFile(path, file, query = {}, onProgress = () => {}) {
     Object.entries(query).forEach(([key, value]) => url.searchParams.set(key, value || ""));
     const request = new XMLHttpRequest();
     request.open("POST", url);
-    request.setRequestHeader("X-Admin-Pin", adminPin);
     request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(event.loaded / event.total);
@@ -465,19 +441,12 @@ async function moderateComment(commentId, action) {
   }
 }
 
-pinForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  adminPin = pinInput.value.trim();
-  unlockDashboard();
-});
-
 settingsForm.addEventListener("submit", saveSettings);
 videoForm.addEventListener("submit", addVideo);
 videoForm.querySelectorAll(".mode-option").forEach((button) => {
   button.addEventListener("click", () => setMode(button.dataset.mode));
 });
 
-document.querySelector(".logout-button").addEventListener("click", () => lockDashboard());
 document.querySelector(".regen-pin").addEventListener("click", async () => {
   if (!window.confirm("Neue Workshop-PIN erzeugen? Bereits verbundene iPads müssen die neue PIN eingeben.")) {
     return;
@@ -494,7 +463,6 @@ document.querySelector(".regen-pin").addEventListener("click", async () => {
 document.querySelector(".export-button").addEventListener("click", async () => {
   try {
     const response = await fetch(apiUrl("export"), {
-      headers: { "X-Admin-Pin": adminPin },
       cache: "no-store",
     });
     if (!response.ok) throw new Error("Auswertung konnte nicht erstellt werden.");
@@ -524,5 +492,4 @@ document.querySelector(".copy-link").addEventListener("click", async () => {
   }
 });
 
-if (adminPin) unlockDashboard();
-else pinInput.focus();
+loadDashboard();

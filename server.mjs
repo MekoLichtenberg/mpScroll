@@ -25,7 +25,6 @@ const dataRoot = join(baseDir, "data");
 const uploadRoot = join(dataRoot, "uploads");
 const statePath = join(dataRoot, "state.json");
 const port = Number(process.env.PORT || 4173);
-const adminPin = process.env.MPSCROLL_PIN || "2468";
 const presence = new Map();
 let writeQueue = Promise.resolve();
 
@@ -185,10 +184,6 @@ function sendJson(response, status, payload) {
     "X-Content-Type-Options": "nosniff",
   });
   response.end(JSON.stringify(payload));
-}
-
-function isAdmin(request) {
-  return request.headers["x-admin-pin"] === adminPin;
 }
 
 async function readJson(request, limit = 256_000) {
@@ -527,12 +522,10 @@ const server = createServer(async (request, response) => {
     }
 
     if (url.pathname.startsWith("/api/admin/")) {
+      // Die Regie ist ausschließlich vom Host-Laptop selbst (localhost) aus erreichbar –
+      // das ist der Schutz. Eine zusätzliche PIN gibt es bewusst nicht mehr.
       if (!isLocalhost(request)) {
         sendJson(response, 404, { error: "Nicht gefunden." });
-        return;
-      }
-      if (!isAdmin(request)) {
-        sendJson(response, 401, { error: "Regie-PIN ist nicht korrekt." });
         return;
       }
 
@@ -735,7 +728,6 @@ server.listen(port, "0.0.0.0", () => {
   console.log("mpScroll ist bereit.");
   console.log(`Regie:        http://localhost:${port}/regie`);
   console.log(`Wand/Beamer:  http://localhost:${port}/wand`);
-  console.log(`Regie-PIN:    ${adminPin}`);
   console.log(`Workshop-PIN: ${state.settings.joinPin}  (fuer die iPads)`);
   for (const url of accessUrls()) console.log(`iPads:        ${url}`);
   console.log("");
