@@ -751,9 +751,10 @@ feedElement.addEventListener("keydown", (event) => {
   else goToClip(index <= 0 ? clips.length - 1 : index - 1);
 });
 
-// Wischen/Scrollen über den Rand hinaus lässt den Feed umschlagen. Weil der
-// Browser nicht über den Inhalt hinaus scrollen lässt, fangen wir den Rand-Impuls
-// selbst ab (Mausrad + Touch), mit kurzer Sperre gegen Doppelauslösung.
+// Wischen/Scrollen über den Rand hinaus lässt den Feed umschlagen. Wichtig: NUR,
+// wenn man schon am Rand steht und dann noch weiter wischt – nicht schon durch den
+// Wisch, der einen überhaupt erst zum letzten Clip bringt (sonst „springt" der Feed
+// beim Ankommen wieder hoch).
 let wrapCooldownUntil = 0;
 const edgeTolerance = 6;
 
@@ -767,31 +768,54 @@ function tryWrap(direction) {
   const now = Date.now();
   if (now < wrapCooldownUntil || clips.length < 2) return;
   if (direction > 0 && activeIndex() >= clips.length - 1 && atBottom()) {
-    wrapCooldownUntil = now + 700;
+    wrapCooldownUntil = now + 800;
     goToClip(0);
   } else if (direction < 0 && activeIndex() <= 0 && atTop()) {
-    wrapCooldownUntil = now + 700;
+    wrapCooldownUntil = now + 800;
     goToClip(clips.length - 1);
   }
+}
+
+// Seit wann stehen wir ununterbrochen am Rand? Der Scroll, der einen gerade erst
+// ans Ende bringt, zählt nicht – erst ein erneuter Impuls nach kurzem Verweilen
+// schlägt um. Das entschärft vor allem das Mausrad mit Nachlauf/Trägheit.
+let atEdgeSince = 0;
+feedElement.addEventListener(
+  "scroll",
+  () => {
+    atEdgeSince = atBottom() || atTop() ? atEdgeSince || Date.now() : 0;
+  },
+  { passive: true },
+);
+function restedAtEdge() {
+  return atEdgeSince && Date.now() - atEdgeSince > 250;
 }
 
 feedElement.addEventListener(
   "wheel",
   (event) => {
-    if (Math.abs(event.deltaY) < 4) return;
+    if (Math.abs(event.deltaY) < 4 || !restedAtEdge()) return;
     tryWrap(event.deltaY > 0 ? 1 : -1);
   },
   { passive: true },
 );
 
+// Für Touch merken wir uns beim Auflegen, ob man schon am Rand steht. Nur dann
+// (plus deutlicher Weiter-Wisch) wird umgeschlagen.
 let touchStartY = null;
+let startedAtBottom = false;
+let startedAtTop = false;
 feedElement.addEventListener(
   "touchstart",
   (event) => {
     // Bedienelemente (Leiste, Buttons) lösen kein Umschlagen aus.
-    touchStartY = event.target.closest("button, a, textarea, .scrubber")
-      ? null
-      : event.touches[0].clientY;
+    if (event.target.closest("button, a, textarea, .scrubber")) {
+      touchStartY = null;
+      return;
+    }
+    touchStartY = event.touches[0].clientY;
+    startedAtBottom = activeIndex() >= clips.length - 1 && atBottom();
+    startedAtTop = activeIndex() <= 0 && atTop();
   },
   { passive: true },
 );
@@ -801,8 +825,8 @@ feedElement.addEventListener(
     if (touchStartY == null) return;
     const endY = (event.changedTouches[0] || {}).clientY ?? touchStartY;
     const dy = endY - touchStartY;
-    if (dy < -60) tryWrap(1); // nach oben gewischt = weiter
-    else if (dy > 60) tryWrap(-1); // nach unten gewischt = zurück
+    if (startedAtBottom && dy < -60) tryWrap(1); // schon unten + weiter hoch gewischt
+    else if (startedAtTop && dy > 60) tryWrap(-1); // schon oben + weiter runter gewischt
     touchStartY = null;
   },
   { passive: true },
