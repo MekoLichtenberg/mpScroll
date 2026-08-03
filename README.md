@@ -5,7 +5,7 @@ Die Workshop-Leitung pflegt Clips und moderiert Kommentare über eine
 Regie-Oberfläche, die Teilnehmenden scrollen auf ihren iPads. Alles läuft
 **lokal im eigenen WLAN**. Keine Cloud, keine Konten.
 
-## Schnellstart (ohne Installation – empfohlen)
+## Schnellstart (ohne Installation)
 
 Das **fertige Paket** unter [Releases](../../releases) laden – `mpScroll-Windows.zip`
 oder `mpScroll-Mac.zip`. Darin steckt Node.js schon mit drin, es muss **nichts
