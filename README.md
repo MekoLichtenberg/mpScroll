@@ -73,17 +73,3 @@ gehosteter Internet-Dienst ist das Kit nicht gedacht.
 
 Reines Node.js ohne Abhängigkeiten (auch der QR-Code wird offline erzeugt).
 Alle Uploads und Einstellungen liegen nur im Ordner `data/` auf dem Laptop.
-
-## Pakete bauen (für Releases)
-
-Die fertigen ZIPs für Windows und Mac erzeugt ein kleines Skript. Es lädt die
-offiziellen, portablen Node-Runtimes und legt sie zusammen mit der App ab:
-
-```
-node tools/build-kit.mjs
-```
-
-Danach liegen `mpScroll-Windows.zip` und `mpScroll-Mac.zip` in `dist/` – diese als
-GitHub-Release hochladen. (`dist/`, `.build-cache/` und `runtime/` sind in
-`.gitignore` und landen nie im Repo.) Das Mac-Paket enthält Node für Apple Silicon
-**und** Intel; das Start-Skript wählt automatisch das passende.
