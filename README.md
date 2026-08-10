@@ -27,8 +27,7 @@ Oben die ZIP über den grünen <> Code Button downloaden.
 
 1. **Starten** – Im Ordner auf Windows: `STARTEN-WINDOWS.cmd` · Mac: `STARTEN-MAC.command`
    klicken.
-2. Die **Regie** öffnet sich direkt im Browser – ohne PIN, denn sie ist nur über
-   den Host-Laptop selbst (localhost) erreichbar; andere Geräte im WLAN kommen nicht dran.
+2. Die **Regie** öffnet sich direkt im Browser andere Geräte im WLAN kommen nicht dran.
    Clips hochladen (MP4/WebM, Hochformat 9:16, am besten 720p), Feed freigeben (Muss man nur einmal machen, alles bleibt für das nächste mal gespeichert)
 3. Die **Wand-Ansicht** (`http://localhost:4173/wand`) an den Beamer geben über erweitertes Display.
    Die iPads scannen den QR-Code und kommen **direkt** in den Feed.
