@@ -5,7 +5,7 @@ Die Workshop-Leitung pflegt Clips und moderiert Kommentare über eine
 Regie-Oberfläche, die Teilnehmenden scrollen auf ihren iPads. Alles läuft
 **lokal im eigenen WLAN**. Keine Cloud, keine Konten.
 
-## Schnellstart (ohne Installation – empfohlen)
+## Schnellstart (ohne Installation)
 
 Das **fertige Paket** unter [Releases](../../releases) laden – `mpScroll-Windows.zip`
 oder `mpScroll-Mac.zip`. Darin steckt Node.js schon mit drin, es muss **nichts
@@ -13,7 +13,8 @@ installiert** werden.
 
 1. ZIP entpacken.
 2. Auf Windows `STARTEN-WINDOWS.cmd`, auf dem Mac `STARTEN-MAC.command` doppelklicken.
-3. Der Rest wie unten ab Schritt 2.
+3. Die Regie öffnet sich direkt im Browser. Clips hochladen (MP4/WebM, Hochformat 9:16, am besten 720p), Feed freigeben (Muss man nur einmal machen, alles bleibt für das nächste mal gespeichert)
+4. Die Wand-Ansicht (http://localhost:4173/wand) an den Beamer geben über erweitertes Display. Die iPads scannen den QR-Code und kommen direkt in den Feed.
 
 Auf dem Mac beim ersten Mal: Rechtsklick auf die Datei → **Öffnen** (Gatekeeper einmal
 bestätigen).
@@ -26,8 +27,7 @@ Oben die ZIP über den grünen <> Code Button downloaden.
 
 1. **Starten** – Im Ordner auf Windows: `STARTEN-WINDOWS.cmd` · Mac: `STARTEN-MAC.command`
    klicken.
-2. Die **Regie** öffnet sich direkt im Browser – ohne PIN, denn sie ist nur über
-   den Host-Laptop selbst (localhost) erreichbar; andere Geräte im WLAN kommen nicht dran.
+2. Die **Regie** öffnet sich direkt im Browser andere Geräte im WLAN kommen nicht dran.
    Clips hochladen (MP4/WebM, Hochformat 9:16, am besten 720p), Feed freigeben (Muss man nur einmal machen, alles bleibt für das nächste mal gespeichert)
 3. Die **Wand-Ansicht** (`http://localhost:4173/wand`) an den Beamer geben über erweitertes Display.
    Die iPads scannen den QR-Code und kommen **direkt** in den Feed.
@@ -73,17 +73,3 @@ gehosteter Internet-Dienst ist das Kit nicht gedacht.
 
 Reines Node.js ohne Abhängigkeiten (auch der QR-Code wird offline erzeugt).
 Alle Uploads und Einstellungen liegen nur im Ordner `data/` auf dem Laptop.
-
-## Pakete bauen (für Releases)
-
-Die fertigen ZIPs für Windows und Mac erzeugt ein kleines Skript. Es lädt die
-offiziellen, portablen Node-Runtimes und legt sie zusammen mit der App ab:
-
-```
-node tools/build-kit.mjs
-```
-
-Danach liegen `mpScroll-Windows.zip` und `mpScroll-Mac.zip` in `dist/` – diese als
-GitHub-Release hochladen. (`dist/`, `.build-cache/` und `runtime/` sind in
-`.gitignore` und landen nie im Repo.) Das Mac-Paket enthält Node für Apple Silicon
-**und** Intel; das Start-Skript wählt automatisch das passende.
