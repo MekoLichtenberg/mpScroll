@@ -50,6 +50,8 @@ const fallbackFeed = {
 const feedElement = document.querySelector(".feed");
 const phoneStage = document.querySelector(".phone-stage");
 const soundButton = document.querySelector(".sound-button");
+const speedButton = document.querySelector(".speed-button");
+const brandLabel = document.querySelector(".brand");
 const statusMode = document.querySelector(".status-mode");
 const workshopLabel = document.querySelector(".workshop-label");
 const toast = document.querySelector(".toast");
@@ -74,6 +76,7 @@ let localState = loadLocalState();
 let feedData = fallbackFeed;
 let serverMode = false;
 let soundOn = false;
+let fastPlayback = false; // Dauer-Schalter für doppelte Geschwindigkeit
 let randomOrder = null; // gemerkte Zufallsreihenfolge (nur bei feedOrder === "random")
 let clips = [];
 let observer;
@@ -188,9 +191,18 @@ function clipMarkup(video, index) {
   const mediaUrl = safeUrl(video.videoUrl);
   const audioUrl = safeUrl(video.audioUrl);
   const isImage = video.mediaType === "image";
+  const images = (Array.isArray(video.images) && video.images.length
+    ? video.images
+    : [video.videoUrl]
+  )
+    .map(safeUrl)
+    .filter(Boolean);
   const comments = feedData.comments?.[video.id] || [];
   const count = localState.counts[video.id] ?? video.likes ?? 0;
   const liked = Boolean(localState.liked[video.id]);
+  // Kommentare können global und pro Clip abgeschaltet sein.
+  const commentsOn =
+    feedData.settings?.commentsEnabled !== false && video.commentsEnabled !== false;
 
   // Leere Angaben werden gar nicht erst eingeblendet – nichts legt sich unnötig
   // über das Video. Nur was wirklich befüllt ist, erscheint.
@@ -206,13 +218,31 @@ function clipMarkup(video, index) {
   const avatar = safeUrl(video.avatarUrl);
   const avatarHtml = avatar ? `<div class="avatar"><img src="${avatar}" alt="" /></div>` : "";
 
-  // Bild-Clip (optional mit Hintergrundmusik) oder klassischer Video-Clip.
-  const mediaHtml = isImage
-    ? `<img class="clip-media clip-image" src="${mediaUrl}" alt="" />` +
+  // Bild-Clip (ein Bild oder Karussell, optional mit Musik) oder Video-Clip.
+  // Videos/Musik bekommen ihre Quelle erst, wenn der Clip in die Nähe kommt
+  // (data-src) – sonst lädt ein Handy alle Clips gleichzeitig und stürzt ab.
+  let mediaHtml;
+  if (isImage) {
+    const slides = images
+      .map(
+        (src, slideIndex) =>
+          `<img class="carousel-slide" ${slideIndex === 0 ? `src="${src}"` : `data-src="${src}"`} alt="" draggable="false" />`,
+      )
+      .join("");
+    const dots =
+      images.length > 1
+        ? `<div class="carousel-dots" aria-hidden="true">${images
+            .map((_, dotIndex) => `<span class="${dotIndex === 0 ? "is-current" : ""}"></span>`)
+            .join("")}</div>`
+        : "";
+    mediaHtml =
+      `<div class="carousel" data-count="${images.length}" data-slide="0">${slides}</div>${dots}` +
       (audioUrl
-        ? `<audio class="clip-audio" src="${audioUrl}" loop preload="metadata"></audio>`
-        : "")
-    : `<video class="clip-media clip-video" src="${mediaUrl}" muted loop playsinline preload="metadata"></video>`;
+        ? `<audio class="clip-audio" data-src="${audioUrl}" loop preload="none"></audio>`
+        : "");
+  } else {
+    mediaHtml = `<video class="clip-media clip-video" data-src="${mediaUrl}" muted loop playsinline webkit-playsinline preload="none" disablepictureinpicture disableremoteplayback></video>`;
+  }
 
   // Zeitleiste + Pause nur, wenn es etwas Abspielbares gibt (Video oder Bild+Musik).
   const hasTimeline = !isImage || Boolean(audioUrl);
@@ -248,10 +278,14 @@ function clipMarkup(video, index) {
           <span class="heart" aria-hidden="true">♥</span>
           <strong class="like-count">${count}</strong>
         </button>
-        <button class="comment-button" type="button" aria-label="Kommentare öffnen">
+        ${
+          commentsOn
+            ? `<button class="comment-button" type="button" aria-label="Kommentare öffnen">
           <span class="comment-icon" aria-hidden="true">○</span>
           <strong class="comment-count">${comments.length}</strong>
-        </button>
+        </button>`
+            : ""
+        }
       </aside>
       ${scrubberHtml}
     </article>
@@ -298,6 +332,10 @@ function renderFeed(data) {
   // Overlay (Titel, Beschreibung, Buttons) auf Wunsch ausblenden, damit sich die
   // Tool-Oberfläche nicht mit eingebrannter Plattform-UI im Video überlagert.
   phoneStage.classList.toggle("overlay-hidden", data.settings?.showOverlay === false);
+  // Kopf- und Fußleiste sind in der Regie einzeln abschaltbar.
+  phoneStage.classList.toggle("no-topbar", data.settings?.showTopbar === false);
+  phoneStage.classList.toggle("no-bottomnav", data.settings?.showBottomNav === false);
+  brandLabel.textContent = data.settings?.brandName || "mpScroll";
 
   feedElement.innerHTML = orderedVideos(data).map(clipMarkup).join("");
   clips = [...document.querySelectorAll(".clip")];
@@ -332,12 +370,10 @@ function setupClips() {
     let holdTimer = 0;
     let holding = false;
 
-    clip.querySelector("img.clip-image")?.addEventListener("error", () =>
-      clip.classList.add("has-video-error"),
-    );
     media?.addEventListener("error", () => clip.classList.add("has-video-error"));
     likeButton.addEventListener("click", () => toggleLike(clip));
-    commentButton.addEventListener("click", () => openComments(clip.dataset.clipId));
+    commentButton?.addEventListener("click", () => openComments(clip.dataset.clipId));
+    setupCarousel(clip);
 
     // Fortschrittsleiste + Spulen – nur wenn es eine Leiste und Abspielbares gibt.
     if (scrubber && media) {
@@ -394,6 +430,7 @@ function setupClips() {
       holding = false;
       window.clearTimeout(holdTimer);
       holdTimer = window.setTimeout(() => {
+        if (clip.dataset.swiping) return; // im Karussell geblättert – kein Schnelllauf
         holding = true;
         window.clearTimeout(singleTapTimer); // dann kein Pause-Tipp auslösen
         startFastForward(clip);
@@ -404,6 +441,7 @@ function setupClips() {
       const wasHolding = holding;
       endHold();
       if (wasHolding) return; // Halten war der Schnelldurchlauf – nicht als Tipp werten.
+      if (clip.dataset.swiping) return; // seitlich gewischt zählt nicht als Tipp
       const now = Date.now();
       const isDouble = now - lastTap < 330;
       lastTap = now;
@@ -421,6 +459,133 @@ function setupClips() {
   wakeChrome();
 }
 
+// Bild-Karussell: seitlich wischen blättert durch die Bilder (wie Insta/TikTok).
+function setupCarousel(clip) {
+  const carousel = clip.querySelector(".carousel");
+  if (!carousel) return;
+  const slides = [...carousel.querySelectorAll(".carousel-slide")];
+  const dots = [...clip.querySelectorAll(".carousel-dots span")];
+  if (slides.length < 2) return;
+
+  let startX = 0;
+  let startY = 0;
+  let dragging = false;
+  let horizontal = null; // noch unklar, ob seitlich oder hoch/runter gewischt wird
+
+  const show = (next) => {
+    const index = Math.max(0, Math.min(slides.length - 1, next));
+    carousel.dataset.slide = String(index);
+    carousel.style.transform = `translateX(-${index * 100}%)`;
+    dots.forEach((dot, dotIndex) => dot.classList.toggle("is-current", dotIndex === index));
+    // Nachbarbilder erst bei Bedarf laden.
+    [index - 1, index, index + 1].forEach((i) => {
+      const slide = slides[i];
+      if (slide?.dataset.src) {
+        slide.src = slide.dataset.src;
+        delete slide.dataset.src;
+      }
+    });
+  };
+  show(0);
+
+  carousel.addEventListener(
+    "pointerdown",
+    (event) => {
+      dragging = true;
+      horizontal = null;
+      startX = event.clientX;
+      startY = event.clientY;
+    },
+    { passive: true },
+  );
+  carousel.addEventListener(
+    "pointermove",
+    (event) => {
+      if (!dragging) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      if (horizontal === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        horizontal = Math.abs(dx) > Math.abs(dy);
+      }
+      if (horizontal) clip.dataset.swiping = "1"; // unterdrückt Tippen/Halten
+    },
+    { passive: true },
+  );
+  const finish = (event) => {
+    if (!dragging) return;
+    dragging = false;
+    const dx = (event.clientX ?? startX) - startX;
+    if (horizontal && Math.abs(dx) > 45) {
+      show(Number(carousel.dataset.slide) + (dx < 0 ? 1 : -1));
+    }
+    horizontal = null;
+    window.setTimeout(() => delete clip.dataset.swiping, 60);
+  };
+  carousel.addEventListener("pointerup", finish, { passive: true });
+  carousel.addEventListener("pointercancel", finish, { passive: true });
+}
+
+// Nur der aktive Clip und seine direkten Nachbarn bekommen eine Quelle. Alles
+// andere wird entladen – Handys halten sonst nicht viele Videos gleichzeitig aus
+// (das war die Ursache für Ruckeln und Abstürze).
+function applyMediaWindow() {
+  const active = clips.findIndex((clip) => clip.dataset.clipId === activeClipId);
+  if (active < 0) return;
+  clips.forEach((clip, index) => {
+    const media = clip.querySelector("video, audio");
+    if (!media) return;
+    const near = Math.abs(index - active) <= 1;
+    if (near) {
+      if (media.dataset.src) {
+        media.src = media.dataset.src;
+        delete media.dataset.src;
+        media.load();
+      }
+      media.preload = index === active ? "auto" : "metadata";
+    } else if (!media.dataset.src && media.src) {
+      // Quelle merken und Speicher freigeben.
+      media.dataset.src = media.getAttribute("src");
+      media.pause();
+      media.removeAttribute("src");
+      media.load();
+    }
+  });
+}
+
+// Lautstärke angleichen: zu laute Clips werden über einen Kompressor gebändigt,
+// leise etwas angehoben – so springt die Lautstärke zwischen Clips nicht.
+let audioContext = null;
+const normalizedMedia = new WeakSet();
+
+function normalizeAudio(media) {
+  if (!media || normalizedMedia.has(media)) return;
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return;
+  try {
+    audioContext ||= new AudioCtx();
+    const source = audioContext.createMediaElementSource(media);
+    const compressor = audioContext.createDynamicsCompressor();
+    compressor.threshold.value = -26; // ab hier wird abgeregelt
+    compressor.knee.value = 28;
+    compressor.ratio.value = 10;
+    compressor.attack.value = 0.004;
+    compressor.release.value = 0.25;
+    const makeup = audioContext.createGain();
+    makeup.gain.value = 1.6; // Ausgleich für das Abregeln
+    source.connect(compressor);
+    compressor.connect(makeup);
+    makeup.connect(audioContext.destination);
+    normalizedMedia.add(media);
+  } catch {
+    // Klappt der Web-Audio-Weg nicht, läuft der Ton einfach unverändert weiter.
+    normalizedMedia.add(media);
+  }
+}
+
+function resumeAudioContext() {
+  if (audioContext?.state === "suspended") audioContext.resume().catch(() => {});
+}
+
 // Gedrückt halten → 2×; nur Video wird beschleunigt (Musik nicht verzerren).
 function startFastForward(clip) {
   const video = clip.querySelector("video");
@@ -432,7 +597,8 @@ function startFastForward(clip) {
 function stopFastForward(clip) {
   const video = clip.querySelector("video");
   if (!video) return;
-  video.playbackRate = 1;
+  // Zurück auf das, was der Dauer-Schalter oben rechts vorgibt.
+  video.playbackRate = fastPlayback ? 2 : 1;
   clip.classList.remove("is-fast");
 }
 
@@ -466,15 +632,24 @@ function setActiveClip(activeClip) {
     const isActive = clip === activeClip;
     clip.classList.toggle("is-active", isActive);
     clip.classList.remove("is-paused", "is-fast");
-    if (!media) return; // statisches Bild
-    media.playbackRate = 1;
-    if (isActive) {
-      media.muted = !soundOn;
-      media.play().catch(() => {});
-    } else {
+    if (!media) return; // statisches Bild ohne Musik
+    if (!isActive) {
       media.pause();
+      media.playbackRate = 1;
     }
   });
+
+  applyMediaWindow();
+
+  const media = activeClip?.querySelector("video, audio");
+  if (!media) return;
+  media.playbackRate = fastPlayback ? 2 : 1;
+  media.muted = !soundOn;
+  if (soundUnlocked) {
+    normalizeAudio(media);
+    resumeAudioContext();
+  }
+  media.play().catch(() => {});
 }
 
 async function toggleLike(clip) {
@@ -535,7 +710,11 @@ function renderComments() {
       .join("");
   }
 
-  const enabled = feedData.settings?.commentsEnabled !== false && serverMode;
+  const clip = feedData.videos?.find((video) => video.id === openCommentClipId);
+  const enabled =
+    feedData.settings?.commentsEnabled !== false &&
+    clip?.commentsEnabled !== false &&
+    serverMode;
   commentForm.classList.toggle("is-disabled", !enabled);
   commentText.disabled = !enabled;
   commentForm.querySelector("button").disabled = !enabled;
@@ -627,7 +806,55 @@ async function heartbeat() {
   }
 }
 
+// Nur echte Änderungen am Aufbau lösen ein Neuzeichnen aus. Likes und
+// Kommentarzahlen ändern sich ständig – die werden unten still nachgetragen.
+// (Vorher wurde bei jedem Like der ganze Feed neu gebaut und ALLE Videos neu
+// geladen – genau das hat auf dem Handy geruckelt und abgestürzt.)
+function structuralSignature(data) {
+  return JSON.stringify({
+    settings: data.settings,
+    videos: (data.videos || []).map((video) => ({
+      id: video.id,
+      mediaType: video.mediaType,
+      title: video.title,
+      channel: video.channel,
+      description: video.description,
+      prompt: video.prompt,
+      videoUrl: video.videoUrl,
+      images: video.images,
+      audioUrl: video.audioUrl,
+      avatarUrl: video.avatarUrl,
+      accent: video.accent,
+      commentsEnabled: video.commentsEnabled,
+    })),
+  });
+}
+
+// Zahlen (Likes, Kommentare) direkt im vorhandenen Markup auffrischen.
+function syncCounts(data) {
+  const byId = new Map((data.videos || []).map((video) => [video.id, video]));
+  clips.forEach((clip) => {
+    const clipId = clip.dataset.clipId;
+    const video = byId.get(clipId);
+    if (!video) return;
+    if (typeof video.likes === "number") {
+      localState.counts[clipId] = video.likes;
+      clip.dataset.baseLikes = String(video.likes);
+      const likeLabel = clip.querySelector(".like-count");
+      if (likeLabel) likeLabel.textContent = video.likes;
+    }
+    const commentLabel = clip.querySelector(".comment-count");
+    if (commentLabel) commentLabel.textContent = (data.comments?.[clipId] || []).length;
+  });
+  saveLocalState();
+}
+
 async function refreshFeed() {
+  // Im Hintergrund (Bildschirm aus, anderer Tab) nicht nachladen – spart Akku
+  // und verhindert Aussetzer beim Zurückkommen.
+  // Der allererste Aufbau laeuft immer – sonst bliebe ein im Hintergrund
+  // geoeffneter Feed (anderer Tab, gesperrtes Handy) dauerhaft leer.
+  if (document.hidden && feedSignature) return;
   try {
     const response = await fetch(apiUrl("feed"), {
       cache: "no-store",
@@ -640,11 +867,7 @@ async function refreshFeed() {
     if (!response.ok) throw new Error();
     hideJoinGate();
     const data = await response.json();
-    const signature = JSON.stringify({
-      settings: data.settings,
-      videos: data.videos,
-      comments: data.comments,
-    });
+    const signature = structuralSignature(data);
     if (signature !== feedSignature) {
       feedSignature = signature;
       data.videos.forEach((video) => {
@@ -652,11 +875,13 @@ async function refreshFeed() {
       });
       renderFeed(data);
       saveLocalState();
-      if (openCommentClipId) renderComments();
     } else {
+      feedData = data; // frische Kommentare für das Kommentar-Fenster
       serverMode = true;
       statusMode.textContent = "gemeinsam";
+      syncCounts(data);
     }
+    if (openCommentClipId) renderComments();
   } catch {
     if (!feedSignature) {
       feedSignature = "fallback";
@@ -689,7 +914,12 @@ function unlockSound() {
   soundOn = true;
   applySound();
   const active = clips.find((clip) => clip.dataset.clipId === activeClipId);
-  active?.querySelector("video, audio")?.play().catch(() => {});
+  const activeMedia = active?.querySelector("video, audio");
+  if (activeMedia) {
+    normalizeAudio(activeMedia);
+    resumeAudioContext();
+    activeMedia.play().catch(() => {});
+  }
   setToast("Ton an");
 }
 
@@ -706,7 +936,12 @@ function startWorkshop() {
   soundOn = true;
   applySound();
   const active = clips.find((clip) => clip.dataset.clipId === activeClipId);
-  active?.querySelector("video, audio")?.play().catch(() => {});
+  const activeMedia = active?.querySelector("video, audio");
+  if (activeMedia) {
+    normalizeAudio(activeMedia);
+    resumeAudioContext();
+    activeMedia.play().catch(() => {});
+  }
   startOverlay.hidden = true;
   setToast("Los geht’s – Ton an");
 }
@@ -721,6 +956,28 @@ soundButton.addEventListener("click", () => {
   soundOn = !soundOn;
   applySound();
   setToast(soundOn ? "Ton an" : "Ton aus");
+});
+
+// Dauerhafte doppelte Geschwindigkeit (zusätzlich zum Gedrückt-Halten).
+speedButton.addEventListener("click", () => {
+  fastPlayback = !fastPlayback;
+  speedButton.classList.toggle("is-on", fastPlayback);
+  speedButton.setAttribute("aria-pressed", String(fastPlayback));
+  speedButton.setAttribute(
+    "aria-label",
+    fastPlayback ? "Normale Geschwindigkeit" : "Doppelte Geschwindigkeit einschalten",
+  );
+  clips.forEach((clip) => {
+    const media = clip.querySelector("video, audio");
+    if (media) media.playbackRate = fastPlayback ? 2 : 1;
+  });
+  setToast(fastPlayback ? "Tempo 2×" : "Tempo normal");
+});
+
+// Langes Drücken auf Video/Bild öffnet sonst das Browser-Menü („Video sichern …“).
+// Das stört beim Gedrückt-Halten für 2× – deshalb hier unterbinden.
+phoneStage.addEventListener("contextmenu", (event) => {
+  if (event.target.closest(".clip")) event.preventDefault();
 });
 
 // Bedien-Elemente oben (Statuszeile + Kopfleiste) legen sich nur kurz übers Video
@@ -862,6 +1119,12 @@ joinForm.addEventListener("submit", async (event) => {
   } catch {
     joinError.textContent = "Keine Verbindung. Bitte nochmal versuchen.";
   }
+});
+
+// Beim Zurueckkommen (Tab gewechselt, Handy entsperrt) sofort auffrischen,
+// statt bis zum naechsten Takt zu warten.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refreshFeed();
 });
 
 refreshFeed();

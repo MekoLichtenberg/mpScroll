@@ -86,10 +86,13 @@ function render() {
     adminState.settings.joinPin || "····";
 
   settingsForm.elements.workshopTitle.value = adminState.settings.workshopTitle;
+  settingsForm.elements.brandName.value = adminState.settings.brandName || "mpScroll";
   settingsForm.elements.published.checked = adminState.settings.published;
   settingsForm.elements.commentsEnabled.checked = adminState.settings.commentsEnabled;
   settingsForm.elements.requireName.checked = adminState.settings.requireName !== false;
   settingsForm.elements.showOverlay.checked = adminState.settings.showOverlay !== false;
+  settingsForm.elements.showTopbar.checked = adminState.settings.showTopbar !== false;
+  settingsForm.elements.showBottomNav.checked = adminState.settings.showBottomNav !== false;
   settingsForm.elements.feedOrderRandom.checked = adminState.settings.feedOrder === "random";
 
   renderVideos();
@@ -129,6 +132,10 @@ function renderVideos() {
             <label>Kurzbeschreibung<textarea name="description" maxlength="240" rows="2" required>${escapeHtml(video.description)}</textarea></label>
             <label>Gesprächsimpuls<input name="prompt" maxlength="100" value="${escapeHtml(video.prompt || "")}" /></label>
             <label>Akzentfarbe<select name="accent">${options}</select></label>
+            <label class="switch-row">
+              <span><strong>Kommentare für diesen Clip</strong></span>
+              <input name="commentsEnabled" type="checkbox" ${video.commentsEnabled === false ? "" : "checked"} />
+            </label>
             <div class="edit-actions">
               <button type="submit" class="primary-button">Speichern</button>
               <button type="button" class="cancel-edit">Abbrechen</button>
@@ -143,8 +150,12 @@ function renderVideos() {
         : escapeHtml((video.channel || "mp").slice(0, 2).toUpperCase());
       const titleLabel = video.title ? escapeHtml(video.title) : "<em>(ohne Titel)</em>";
       const channelLabel = video.channel ? escapeHtml(video.channel) : "ohne Profilname";
+      const imageCount = video.images?.length || 0;
       const typeLabel =
-        video.mediaType === "image" ? (video.audioUrl ? " · Bild + Musik" : " · Bild") : "";
+        video.mediaType === "image"
+          ? ` · ${imageCount > 1 ? `${imageCount} Bilder` : "Bild"}${video.audioUrl ? " + Musik" : ""}`
+          : "";
+      const commentLabel = video.commentsEnabled === false ? " · Kommentare aus" : "";
       return `
         <article class="video-row">
           <div class="reorder-actions">
@@ -156,7 +167,7 @@ function renderVideos() {
           <div class="video-avatar">${avatarMarkup}</div>
           <div class="row-copy">
             <strong>${titleLabel}</strong>
-            <span>${channelLabel} · ${Number(video.likes || 0)} Likes${typeLabel}</span>
+            <span>${channelLabel} · ${Number(video.likes || 0)} Likes${typeLabel}${commentLabel}</span>
           </div>
           <div class="row-actions">
             <button class="edit-video" type="button" data-video-id="${escapeHtml(video.id)}">Bearbeiten</button>
@@ -213,6 +224,7 @@ async function saveVideoEdit(event) {
         description: form.elements.description.value,
         prompt: form.elements.prompt.value,
         accent: form.elements.accent.value,
+        commentsEnabled: form.elements.commentsEnabled.checked,
       }),
     });
     editingVideoId = null;
@@ -271,10 +283,13 @@ async function saveSettings(event) {
       method: "POST",
       body: JSON.stringify({
         workshopTitle: settingsForm.elements.workshopTitle.value,
+        brandName: settingsForm.elements.brandName.value,
         published: settingsForm.elements.published.checked,
         commentsEnabled: settingsForm.elements.commentsEnabled.checked,
         requireName: settingsForm.elements.requireName.checked,
         showOverlay: settingsForm.elements.showOverlay.checked,
+        showTopbar: settingsForm.elements.showTopbar.checked,
+        showBottomNav: settingsForm.elements.showBottomNav.checked,
         feedOrder: settingsForm.elements.feedOrderRandom.checked ? "random" : "custom",
       }),
     });
@@ -316,13 +331,15 @@ async function addVideo(event) {
   event.preventDefault();
   const submitButton = videoForm.querySelector("button[type='submit']");
   const isImage = currentMode === "image";
-  const mainFile = isImage
-    ? videoForm.elements.image.files[0]
-    : videoForm.elements.video.files[0];
+  const imageFiles = isImage ? [...videoForm.elements.image.files] : [];
+  const videoFile = isImage ? null : videoForm.elements.video.files[0];
   const avatarFile = isImage ? null : videoForm.elements.avatar.files[0];
   const audioFile = isImage ? videoForm.elements.audio.files[0] : null;
-  if (!mainFile) {
-    formMessage.textContent = isImage ? "Bitte ein Bild auswählen." : "Bitte ein Video auswählen.";
+  const clipComments = videoForm.elements.clipComments.checked;
+  if (isImage ? !imageFiles.length : !videoFile) {
+    formMessage.textContent = isImage
+      ? "Bitte mindestens ein Bild auswählen."
+      : "Bitte ein Video auswählen.";
     return;
   }
 
@@ -333,40 +350,67 @@ async function addVideo(event) {
 
   try {
     const fields = Object.fromEntries(new FormData(videoForm).entries());
-    let avatarUrl = "";
-    let audioUrl = "";
-    if (avatarFile) {
-      const avatarResult = await uploadFile("avatar", avatarFile, {}, (ratio) => {
-        progressBar.style.width = `${Math.round(ratio * 10)}%`;
+    let result;
+
+    if (isImage) {
+      // Erst die Musik, dann jedes Bild einzeln – danach den Clip zusammensetzen.
+      let audioUrl = "";
+      if (audioFile) {
+        formMessage.textContent = "Musik wird übertragen …";
+        const audioResult = await uploadFile("audio", audioFile, {}, (ratio) => {
+          progressBar.style.width = `${Math.round(ratio * 25)}%`;
+        });
+        audioUrl = audioResult.url;
+      }
+      const images = [];
+      for (const [index, file] of imageFiles.entries()) {
+        formMessage.textContent = `Bild ${index + 1} von ${imageFiles.length} wird übertragen …`;
+        const imageResult = await uploadFile("image", file, {}, (ratio) => {
+          const done = (index + ratio) / imageFiles.length;
+          progressBar.style.width = `${25 + Math.round(done * 70)}%`;
+        });
+        images.push(imageResult.url);
+      }
+      result = await api("clip", {
+        method: "POST",
+        body: JSON.stringify({
+          images,
+          audioUrl,
+          title: fields.title,
+          channel: fields.channel,
+          description: fields.description,
+          prompt: fields.prompt,
+          accent: fields.accent,
+          commentsEnabled: clipComments,
+        }),
       });
-      avatarUrl = avatarResult.url;
-    }
-    if (audioFile) {
-      formMessage.textContent = "Musik wird übertragen …";
-      const audioResult = await uploadFile("audio", audioFile, {}, (ratio) => {
-        progressBar.style.width = `${Math.round(ratio * 30)}%`;
-      });
-      audioUrl = audioResult.url;
+    } else {
+      let avatarUrl = "";
+      if (avatarFile) {
+        const avatarResult = await uploadFile("avatar", avatarFile, {}, (ratio) => {
+          progressBar.style.width = `${Math.round(ratio * 10)}%`;
+        });
+        avatarUrl = avatarResult.url;
+      }
+      result = await uploadFile(
+        "video",
+        videoFile,
+        {
+          title: fields.title,
+          channel: fields.channel,
+          description: fields.description,
+          prompt: fields.prompt,
+          accent: fields.accent,
+          avatarUrl,
+          commentsEnabled: clipComments ? "1" : "0",
+        },
+        (ratio) => {
+          progressBar.style.width = `${10 + Math.round(ratio * 90)}%`;
+          formMessage.textContent = `Video wird übertragen … ${Math.round(ratio * 100)} %`;
+        },
+      );
     }
 
-    const result = await uploadFile(
-      "video",
-      mainFile,
-      {
-        title: fields.title,
-        channel: fields.channel,
-        description: fields.description,
-        prompt: fields.prompt,
-        accent: fields.accent,
-        avatarUrl,
-        audioUrl,
-        mediaType: isImage ? "image" : "video",
-      },
-      (ratio) => {
-        progressBar.style.width = `${30 + Math.round(ratio * 70)}%`;
-        formMessage.textContent = `${isImage ? "Bild" : "Video"} wird übertragen … ${Math.round(ratio * 100)} %`;
-      },
-    );
     progressBar.style.width = "100%";
     const label = result.video.title || (isImage ? "Bild-Clip" : "Clip");
     formMessage.textContent = `„${label}“ ist jetzt im Feed.`;

@@ -243,8 +243,15 @@ textarea {
   transform: translateX(-50%);
 }
 
-.sound-button {
+.top-actions {
   justify-self: end;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sound-button,
+.speed-button {
   display: grid;
   width: 35px;
   height: 35px;
@@ -253,16 +260,40 @@ textarea {
   border: 1px solid rgba(255, 255, 255, 0.58);
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.32);
+  color: var(--white);
   cursor: pointer;
+  backdrop-filter: blur(8px);
 }
 
-.sound-button span {
+.sound-button svg,
+.speed-button svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Lautsprecher-Symbol gefüllt, die Schallwellen bleiben Striche. */
+.sound-button svg > path:first-child,
+.speed-button svg > path {
+  fill: currentColor;
+}
+
+.sound-button .icon-sound-off,
+.sound-button.is-on .icon-sound-on {
   display: block;
-  font-size: 22px;
-  transform: rotate(-35deg);
 }
 
-.sound-button.is-on {
+.sound-button .icon-sound-on,
+.sound-button.is-on .icon-sound-off {
+  display: none;
+}
+
+.sound-button.is-on,
+.speed-button.is-on {
   border-color: var(--yellow);
   background: var(--yellow);
   color: var(--black);
@@ -350,8 +381,7 @@ textarea {
   color: var(--white);
 }
 
-.clip-video,
-.clip-image {
+.clip-video {
   position: absolute;
   z-index: 2;
   inset: 0;
@@ -361,8 +391,60 @@ textarea {
 }
 
 .clip.has-video-error .clip-video,
-.clip.has-video-error .clip-image {
+.clip.has-video-error .carousel {
   display: none;
+}
+
+/* Bild-Karussell: alle Bilder nebeneinander, seitlich durchgeschoben. */
+.carousel {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  touch-action: pan-y;
+}
+
+.carousel-slide {
+  width: 100%;
+  height: 100%;
+  flex: 0 0 100%;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.carousel-dots {
+  position: absolute;
+  z-index: 9;
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  left: 50%;
+  display: flex;
+  gap: 6px;
+  transform: translateX(-50%);
+}
+
+.carousel-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  transition: 160ms ease;
+}
+
+.carousel-dots span.is-current {
+  width: 18px;
+  border-radius: 999px;
+  background: var(--white);
+}
+
+/* Langes Drücken (für 2×) darf kein Browser-Menü oder Auswahl auslösen. */
+.clip {
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Kurz eingeblendetes „2×", solange man fürs Vorspulen gedrückt hält. */
@@ -681,6 +763,37 @@ textarea {
 .phone-stage.overlay-hidden .clip-copy,
 .phone-stage.overlay-hidden .action-rail {
   display: none;
+}
+
+/* Kopf- und Fußleiste sind in der Regie einzeln abschaltbar. Bei "obere Leiste
+   aus" verschwindet nur die Deko (Name, Tabs, Statuszeile) – Ton- und
+   Tempo-Knopf bleiben erreichbar. */
+.phone-stage.no-topbar .brand,
+.phone-stage.no-topbar .feed-tabs,
+.phone-stage.no-topbar .status-pill,
+.phone-stage.no-bottomnav .bottom-nav {
+  display: none;
+}
+
+.phone-stage.no-topbar .topbar {
+  background: transparent;
+}
+
+/* Ohne Fußleiste rücken Texte, Buttons und Spul-Leiste nach unten nach. */
+.phone-stage.no-bottomnav .clip-copy {
+  bottom: calc(34px + env(safe-area-inset-bottom));
+}
+
+.phone-stage.no-bottomnav .action-rail {
+  bottom: calc(48px + env(safe-area-inset-bottom));
+}
+
+.phone-stage.no-bottomnav .scrubber {
+  bottom: calc(8px + env(safe-area-inset-bottom));
+}
+
+.phone-stage.no-bottomnav .carousel-dots {
+  bottom: calc(22px + env(safe-area-inset-bottom));
 }
 
 .bottom-nav {

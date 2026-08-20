@@ -29,16 +29,31 @@
 
     <main class="phone-stage" aria-label="Kuratierter Video-Feed">
       <header class="topbar">
-        <a class="brand" href="#feed-start" aria-label="Zum ersten Clip">
-          mp<span>Scroll</span>
-        </a>
+        <a class="brand" href="#feed-start" aria-label="Zum ersten Clip">mpScroll</a>
         <div class="feed-tabs" aria-label="Ansicht">
           <span>Entdecken</span>
           <strong>Workshop</strong>
         </div>
-        <button class="sound-button" type="button" aria-label="Ton einschalten">
-          <span aria-hidden="true">⌁</span>
-        </button>
+        <div class="top-actions">
+          <button class="speed-button" type="button" aria-label="Doppelte Geschwindigkeit einschalten" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M3 6.5 11 12l-8 5.5z" />
+              <path d="M12.5 6.5 20.5 12l-8 5.5z" />
+            </svg>
+          </button>
+          <button class="sound-button" type="button" aria-label="Ton einschalten" aria-pressed="false">
+            <svg class="icon-sound-on" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z" />
+              <path class="wave" d="M15.5 9a4.2 4.2 0 0 1 0 6" />
+              <path class="wave" d="M18 6.6a7.6 7.6 0 0 1 0 10.8" />
+            </svg>
+            <svg class="icon-sound-off" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z" />
+              <path class="wave" d="m16 9.5 5 5" />
+              <path class="wave" d="m21 9.5-5 5" />
+            </svg>
+          </button>
+        </div>
       </header>
 
       <div class="status-pill">

@@ -84,6 +84,10 @@
               Titel des Workshops
               <input name="workshopTitle" maxlength="60" required />
             </label>
+            <label>
+              Name oben links im Feed
+              <input name="brandName" maxlength="24" placeholder="mpScroll" />
+            </label>
             <label class="switch-row">
               <span>
                 <strong>Feed freigeben</strong>
@@ -111,6 +115,20 @@
                 <small>Titel, Beschreibung &amp; Buttons. Aus = nur das reine Video.</small>
               </span>
               <input name="showOverlay" type="checkbox" />
+            </label>
+            <label class="switch-row">
+              <span>
+                <strong>Obere Leiste zeigen</strong>
+                <small>Name, „Entdecken/Workshop“ und die Statuszeile.</small>
+              </span>
+              <input name="showTopbar" type="checkbox" />
+            </label>
+            <label class="switch-row">
+              <span>
+                <strong>Untere Leiste zeigen</strong>
+                <small>Die Navigation „Feed · Impulse · Workshop“ am unteren Rand.</small>
+              </span>
+              <input name="showBottomNav" type="checkbox" />
             </label>
             <label class="switch-row">
               <span>
@@ -173,9 +191,9 @@
             </div>
             <div class="field-grid" data-media="image" hidden>
               <label class="file-field">
-                Bild auswählen
-                <input name="image" type="file" accept="image/png,image/jpeg,image/webp" />
-                <span>PNG, JPG oder WebP · Pflicht</span>
+                Bilder auswählen
+                <input name="image" type="file" accept="image/png,image/jpeg,image/webp" multiple />
+                <span>PNG, JPG oder WebP · mehrere = Karussell zum Wischen</span>
               </label>
               <label class="file-field">
                 Musik auswählen <em>optional</em>
@@ -193,6 +211,13 @@
                 <option value="blue">Blau</option>
                 <option value="red">Rot</option>
               </select>
+            </label>
+            <label class="switch-row">
+              <span>
+                <strong>Kommentare für diesen Clip</strong>
+                <small>Aus = bei diesem Clip erscheint kein Kommentar-Knopf.</small>
+              </span>
+              <input name="clipComments" type="checkbox" checked />
             </label>
             <div class="upload-progress" hidden>
               <span></span>

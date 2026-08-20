@@ -65,10 +65,13 @@ function defaultState() {
   return {
     settings: {
       workshopTitle: "mediale pfade Workshop",
+      brandName: "mpScroll",
       published: true,
       commentsEnabled: true,
       requireName: true,
       showOverlay: true,
+      showTopbar: true,
+      showBottomNav: true,
       feedOrder: "custom",
       joinPin: String(randomInt(1000, 10000)),
     },
@@ -147,7 +150,18 @@ if (!state.settings.joinPin) {
 // ergänzen (Namen abfragen = an, Overlay zeigen = an, feste Reihenfolge).
 if (state.settings.requireName === undefined) state.settings.requireName = true;
 if (state.settings.showOverlay === undefined) state.settings.showOverlay = true;
+if (state.settings.showTopbar === undefined) state.settings.showTopbar = true;
+if (state.settings.showBottomNav === undefined) state.settings.showBottomNav = true;
+if (!state.settings.brandName) state.settings.brandName = "mpScroll";
 state.settings.feedOrder = state.settings.feedOrder === "random" ? "random" : "custom";
+// Ältere Clips kennen mediaType/images/commentsEnabled noch nicht.
+for (const video of state.videos) {
+  if (!video.mediaType) video.mediaType = "video";
+  if (video.commentsEnabled === undefined) video.commentsEnabled = true;
+  if (video.mediaType === "image" && !Array.isArray(video.images)) {
+    video.images = video.videoUrl ? [video.videoUrl] : [];
+  }
+}
 
 const loopbackAddresses = new Set([
   "127.0.0.1",
@@ -283,10 +297,13 @@ function publicFeed() {
   return {
     settings: {
       workshopTitle: state.settings.workshopTitle,
+      brandName: state.settings.brandName || "mpScroll",
       published: state.settings.published,
       commentsEnabled: state.settings.commentsEnabled,
       requireName: state.settings.requireName !== false,
       showOverlay: state.settings.showOverlay !== false,
+      showTopbar: state.settings.showTopbar !== false,
+      showBottomNav: state.settings.showBottomNav !== false,
       feedOrder: state.settings.feedOrder === "random" ? "random" : "custom",
     },
     videos: state.videos,
@@ -503,8 +520,13 @@ const server = createServer(async (request, response) => {
       const payload = await readJson(request);
       const clipId = cleanText(payload.clipId, 80);
       const text = cleanText(payload.text, 180);
-      if (!text || !state.videos.some((video) => video.id === clipId)) {
+      const clip = state.videos.find((video) => video.id === clipId);
+      if (!text || !clip) {
         sendJson(response, 400, { error: "Kommentar oder Clip fehlt." });
+        return;
+      }
+      if (clip.commentsEnabled === false) {
+        sendJson(response, 403, { error: "Für diesen Clip sind Kommentare aus." });
         return;
       }
       state.comments.push({
@@ -555,10 +577,13 @@ const server = createServer(async (request, response) => {
         const payload = await readJson(request);
         state.settings.workshopTitle =
           cleanText(payload.workshopTitle, 60) || "mediale pfade Workshop";
+        state.settings.brandName = cleanText(payload.brandName, 24) || "mpScroll";
         state.settings.published = Boolean(payload.published);
         state.settings.commentsEnabled = Boolean(payload.commentsEnabled);
         state.settings.requireName = Boolean(payload.requireName);
         state.settings.showOverlay = Boolean(payload.showOverlay);
+        state.settings.showTopbar = Boolean(payload.showTopbar);
+        state.settings.showBottomNav = Boolean(payload.showBottomNav);
         state.settings.feedOrder = payload.feedOrder === "random" ? "random" : "custom";
         await persistState();
         sendJson(response, 200, { settings: state.settings });
@@ -596,6 +621,50 @@ const server = createServer(async (request, response) => {
         return;
       }
 
+      // Einzelnes Karussell-Bild ablegen – die Regie lädt mehrere nacheinander hoch.
+      if (url.pathname === "/api/admin/image" && request.method === "POST") {
+        const uploadedUrl = await receiveUpload(request, "image");
+        sendJson(response, 201, { url: uploadedUrl });
+        return;
+      }
+
+      // Bild-Clip (ein Bild oder Karussell) aus bereits hochgeladenen Dateien bauen.
+      if (url.pathname === "/api/admin/clip" && request.method === "POST") {
+        const payload = await readJson(request);
+        const images = (Array.isArray(payload.images) ? payload.images : [])
+          .map((item) => cleanText(item, 180))
+          .filter((item) => item.startsWith("/uploads/"))
+          .slice(0, 20);
+        if (!images.length) {
+          sendJson(response, 400, { error: "Mindestens ein Bild auswählen." });
+          return;
+        }
+        const audioUrl = cleanText(payload.audioUrl, 180);
+        const avatarUrl = cleanText(payload.avatarUrl, 180);
+        const accent = cleanText(payload.accent, 20);
+        const video = {
+          id: randomUUID(),
+          mediaType: "image",
+          title: cleanText(payload.title, 80),
+          channel: cleanText(payload.channel, 30),
+          description: cleanText(payload.description, 240),
+          prompt: cleanText(payload.prompt, 100),
+          images,
+          videoUrl: images[0], // Rückfall für ältere Ansichten
+          audioUrl: audioUrl.startsWith("/uploads/") ? audioUrl : "",
+          avatarUrl: avatarUrl.startsWith("/uploads/") ? avatarUrl : "",
+          accent: ["cyan", "yellow", "magenta", "green", "blue", "red"].includes(accent)
+            ? accent
+            : "cyan",
+          commentsEnabled: payload.commentsEnabled !== false,
+          likes: 0,
+        };
+        state.videos.push(video);
+        await persistState();
+        sendJson(response, 201, { video });
+        return;
+      }
+
       if (url.pathname === "/api/admin/video" && request.method === "POST") {
         const title = cleanText(url.searchParams.get("title"), 80);
         const channel = cleanText(url.searchParams.get("channel"), 30);
@@ -603,24 +672,23 @@ const server = createServer(async (request, response) => {
         const prompt = cleanText(url.searchParams.get("prompt"), 100);
         const avatarUrl = cleanText(url.searchParams.get("avatarUrl"), 180);
         const accent = cleanText(url.searchParams.get("accent"), 20);
-        const audioUrl = cleanText(url.searchParams.get("audioUrl"), 180);
-        // "image" = Bild-Clip (optional mit Hintergrundmusik), sonst klassisches Video.
-        const isImage = url.searchParams.get("mediaType") === "image";
-        // Nur die Mediendatei ist Pflicht – alle Textangaben und das Profilbild sind optional.
-        const mediaUrl = await receiveUpload(request, isImage ? "image" : "video");
+        // Nur die Videodatei ist Pflicht – alle Textangaben und das Profilbild sind optional.
+        // (Bild-Clips laufen über /api/admin/clip, weil dort mehrere Dateien zusammenkommen.)
+        const mediaUrl = await receiveUpload(request, "video");
         const video = {
           id: randomUUID(),
-          mediaType: isImage ? "image" : "video",
+          mediaType: "video",
           title,
           channel,
           description,
           prompt,
           videoUrl: mediaUrl,
-          audioUrl: isImage && audioUrl.startsWith("/uploads/") ? audioUrl : "",
+          audioUrl: "",
           avatarUrl: avatarUrl.startsWith("/uploads/") ? avatarUrl : "",
           accent: ["cyan", "yellow", "magenta", "green", "blue", "red"].includes(accent)
             ? accent
             : "cyan",
+          commentsEnabled: url.searchParams.get("commentsEnabled") !== "0",
           likes: 0,
         };
         state.videos.push(video);
@@ -643,6 +711,9 @@ const server = createServer(async (request, response) => {
         if (payload.channel !== undefined) video.channel = cleanText(payload.channel, 30);
         if (payload.description !== undefined) video.description = cleanText(payload.description, 240);
         if (payload.prompt !== undefined) video.prompt = cleanText(payload.prompt, 100);
+        if (payload.commentsEnabled !== undefined) {
+          video.commentsEnabled = Boolean(payload.commentsEnabled);
+        }
         const accent = cleanText(payload.accent, 20);
         if (["cyan", "yellow", "magenta", "green", "blue", "red"].includes(accent)) {
           video.accent = accent;
@@ -664,6 +735,9 @@ const server = createServer(async (request, response) => {
         await removeUploadedFile(video.videoUrl);
         await removeUploadedFile(video.avatarUrl);
         await removeUploadedFile(video.audioUrl);
+        for (const image of video.images || []) {
+          if (image !== video.videoUrl) await removeUploadedFile(image);
+        }
         await persistState();
         sendJson(response, 200, { deleted: true });
         return;
